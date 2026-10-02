@@ -203,7 +203,7 @@ final class AppState: ObservableObject {
     }
 
     /// How many non-main pills can be active at once. The overview card pages them 4 at a time.
-    static let maxActivePills = 6
+    static let maxActivePills = 8
 
     // Active integration pills (main workspace pill excluded). Max `maxActivePills`.
     @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
