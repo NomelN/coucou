@@ -2572,13 +2572,41 @@ struct TickerShimmerText: View {
 struct AgentPillsView: View {
     @ObservedObject var state: AppState
     @State private var swapping = false
+    @State private var page = 0
+    @State private var pageForward = true
+
+    /// The 2×2 grid shows 4 pills; more than that are paged with the ‹ › arrows.
+    private static let pillsPerPage = 4
 
     private var others: [AgentTask] {
         state.tasks.filter { $0.id != state.focusId }
     }
 
+    private var pageCount: Int {
+        max(1, (others.count + Self.pillsPerPage - 1) / Self.pillsPerPage)
+    }
+
+    private var currentPage: Int { min(page, pageCount - 1) }
+
     private var displayTasks: [AgentTask] {
-        Array(others.prefix(4))
+        Array(others.dropFirst(currentPage * Self.pillsPerPage).prefix(Self.pillsPerPage))
+    }
+
+    /// Most urgent badge among the pills on the pages before (or after) the current one,
+    /// so an alert on a hidden page still shows up as a dot on the arrow pointing to it.
+    private func hiddenBadge(after: Bool) -> PillBadge? {
+        let start = currentPage * Self.pillsPerPage
+        let hidden = after ? others.dropFirst(start + Self.pillsPerPage) : others.prefix(start)
+        let badges = hidden.compactMap(\.pillBadge)
+        return [PillBadge.approval, .error, .finished].first { badges.contains($0) }
+    }
+
+    private func turnPage(by delta: Int) {
+        let target = currentPage + delta
+        guard target >= 0, target < pageCount else { return }
+        pageForward = delta > 0
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { page = target }
+        SoundEngine.shared.play("tick")
     }
 
     private let columns = [
@@ -2587,6 +2615,24 @@ struct AgentPillsView: View {
     ]
 
     var body: some View {
+        let paged = pageCount > 1
+        HStack(spacing: 0) {
+            if paged {
+                PageArrow(systemName: "chevron.left", enabled: currentPage > 0,
+                          badge: hiddenBadge(after: false)) { turnPage(by: -1) }
+            }
+            pillsGrid(paged: paged)
+            if paged {
+                PageArrow(systemName: "chevron.right", enabled: currentPage < pageCount - 1,
+                          badge: hiddenBadge(after: true)) { turnPage(by: 1) }
+            }
+        }
+        .onChange(of: pageCount) { _, count in
+            if page >= count { page = count - 1 }
+        }
+    }
+
+    private func pillsGrid(paged: Bool) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             LazyVGrid(columns: columns, spacing: 4) {
@@ -2617,10 +2663,46 @@ struct AgentPillsView: View {
                     #endif
                 }
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, paged ? 0 : 8)
+            // New page slides in from the arrow's side; the old one just fades
+            .id(currentPage)
+            .transition(.asymmetric(
+                insertion: .offset(x: pageForward ? 24 : -24).combined(with: .opacity),
+                removal: .opacity))
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// ‹ / › arrow beside the pills grid. A dot shows when a pill on that side needs attention.
+private struct PageArrow: View {
+    let systemName: String
+    let enabled: Bool
+    let badge: PillBadge?
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(!enabled ? Color(hex: "#34373D")
+                                 : isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#6B7079"))
+                .frame(width: 20, height: 28)
+                .contentShape(Rectangle())
+                .overlay(alignment: .topTrailing) {
+                    if let badge {
+                        Circle()
+                            .fill(PillBadgeView.color(for: badge))
+                            .frame(width: 6, height: 6)
+                            .offset(x: -3, y: 4)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -2890,13 +2972,15 @@ struct PillBadgeView: View {
     let badge: PillBadge
     let taskColor: String
 
-    private var badgeColor: Color {
+    static func color(for badge: PillBadge) -> Color {
         switch badge {
         case .approval: return Color(hex: "#F5A524")
         case .finished: return Color(hex: "#22C55E")
         case .error:    return Color(hex: "#F4505E")
         }
     }
+
+    private var badgeColor: Color { Self.color(for: badge) }
 
     private var icon: String {
         switch badge {

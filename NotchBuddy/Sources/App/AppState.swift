@@ -193,7 +193,10 @@ final class AppState: ObservableObject {
         }
     }
 
-    // Active integration pills (main workspace pill excluded). Max 4.
+    /// How many non-main pills can be active at once. The overview card pages them 4 at a time.
+    static let maxActivePills = 6
+
+    // Active integration pills (main workspace pill excluded). Max `maxActivePills`.
     @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
         didSet {
             if let data = try? JSONEncoder().encode(Array(activeIntegrations)) {
@@ -384,7 +387,7 @@ final class AppState: ObservableObject {
 
     /// Toggle a catalog pill on/off.
     /// mainPillId: never toggleable (change via the Main picker first).
-    /// Max 4 non-main pills active at once.
+    /// Max `maxActivePills` non-main pills active at once.
     func toggleIntegration(_ id: String) {
         guard id != mainPillId else { return }
         guard PillCatalog.available.contains(where: { $0.id == id }) else { return }
@@ -393,7 +396,7 @@ final class AppState: ObservableObject {
             tasks.removeAll { $0.id == id }
             if focusId == id { focusId = mainPillId }
         } else {
-            guard activeIntegrations.count < 4 else { return }
+            guard activeIntegrations.count < Self.maxActivePills else { return }
             activeIntegrations.insert(id)
             if let def = PillCatalog.available.first(where: { $0.id == id }),
                !tasks.contains(where: { $0.id == id }) {

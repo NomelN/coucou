@@ -104,9 +104,10 @@ Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source d
 Couleurs : Cursor `#C0C4CC`, Codex `#2DD4BF`, Gemini CLI `#8AB4F8`, Antigravity `#E879F9`, pastilles IA = `ChatProvider.accentHex`.
 
 Règles :
-- **`mainPillId`** (défaut `integration_claude`) est la pastille workspace toujours chargée. Elle ne compte pas dans les 4 places. Modifiable via le sélecteur Main dans Settings.
+- **`mainPillId`** (défaut `integration_claude`) est la pastille workspace toujours chargée. Elle ne compte pas dans cette limite. Modifiable via le sélecteur Main dans Settings.
 - Quand `mainPillId != "integration_claude"`, la pastille VS Code est chargée seulement si une session VS Code est active (transient) ou si elle est cochée dans `activeIntegrations`.
-- Max 4 pastilles autres que `mainPillId` actives à la fois (`activeIntegrations`, persisté).
+- Max 6 pastilles autres que `mainPillId` actives à la fois (`activeIntegrations`, persisté ; limite = `AppState.maxActivePills`).
+- Carte de droite de `overview` : grille 2×2, 4 pastilles par page. Au-delà de 4, flèches ‹ › de chaque côté de la grille (grisées en première / dernière page, son `tick`). Une pastille avec badge sur une page cachée met un point de la couleur du badge sur la flèche qui y mène (priorité approval > error > finished). La grille compact et la colonne des autres vues montrent toujours les 4 premières.
 - `removeTask` sur `mainPillId` ou une pastille déclarée + active → reset à `.idle` + `pillBadge = nil` + nom du catalogue (pas de suppression). Sinon → suppression normale.
 - `sortTasksByCatalog` : pastilles du catalogue dans l'ordre du catalogue ; pastilles hors catalogue juste après `integration_claude`.
 - Pastilles `githubOnly` : exclues des builds App Store (`#if APPSTORE`).

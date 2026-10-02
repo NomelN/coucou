@@ -277,9 +277,9 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 
-                Text("\(state.activeIntegrations.count)/4 slots used")
+                Text("\(state.activeIntegrations.count)/\(AppState.maxActivePills) slots used")
                     .font(.system(size: 11))
-                    .foregroundColor(state.activeIntegrations.count >= 4 ? .orange : .secondary)
+                    .foregroundColor(state.activeIntegrations.count >= AppState.maxActivePills ? .orange : .secondary)
 
                 Picker("Main", selection: $state.mainPillId) {
                     ForEach(PillCatalog.available.filter { $0.category == .workspace && !$0.comingSoon }, id: \.id) { def in
@@ -930,7 +930,7 @@ struct SettingsView: View {
     private func pillRow(_ def: PillDefinition) -> some View {
         let isMain = def.id == state.mainPillId
         let isOn   = state.activeIntegrations.contains(def.id)
-        let atMax  = state.activeIntegrations.count >= 4 && !isOn && !isMain
+        let atMax  = state.activeIntegrations.count >= AppState.maxActivePills && !isOn && !isMain
         let hint: String? = {
             if isMain { return nil }
             if def.comingSoon { return "Coming soon" }
