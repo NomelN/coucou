@@ -138,7 +138,10 @@ final class StripePoller: @unchecked Sendable {
 
         state.tasks[idx].state = .finished
         state.tasks[idx].steps = [newest.description ?? newest.amountFormatted]
-        if !focused { state.tasks[idx].pillBadge = .finished }
+        if !focused {
+            state.tasks[idx].pillBadge = .finished
+            state.focusForNotice("integration_stripe")
+        }
         SoundEngine.shared.play("finish")
 
         // 2. After slide settles, count up balance

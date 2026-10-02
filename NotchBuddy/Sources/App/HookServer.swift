@@ -350,6 +350,7 @@ final class HookServer: @unchecked Sendable {
                 expandIfNeeded(to: .finished)
             } else {
                 setPillBadge(id: agentId, badge: .finished)
+                state.focusForNotice(agentId)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.2) {
                 if isExternalAgent {
@@ -367,6 +368,7 @@ final class HookServer: @unchecked Sendable {
                 expandIfNeeded(to: .error)
             } else {
                 setPillBadge(id: agentId, badge: .error)
+                state.focusForNotice(agentId)
             }
 
         case "Interrupt":
@@ -535,7 +537,9 @@ final class HookServer: @unchecked Sendable {
 
         // Approval always forces the island open — user must be able to respond.
         // Save current focus so we can restore it when the card is dismissed.
-        if focusBeforeApproval == nil { focusBeforeApproval = state.focusId }
+        // If a notification had taken the focus, restore the pill from before it instead.
+        let beforeNotice = state.cancelNoticeFocus()
+        if focusBeforeApproval == nil { focusBeforeApproval = beforeNotice ?? state.focusId }
         withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { state.focusId = pillId }
         expandIfNeeded(to: .approval)
 

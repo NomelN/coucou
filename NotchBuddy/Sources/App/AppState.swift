@@ -324,6 +324,7 @@ final class AppState: ObservableObject {
         }
         // Undeclared or declared-but-not-active: remove
         tasks.removeAll { $0.id == id }
+        if noticeFocusId == id { endNoticeFocus() }  // a notified agent left: the previous pill comes back now
         if focusId == id { focusId = mainPillId }
         syncMode()
         syncView()
@@ -336,8 +337,77 @@ final class AppState: ObservableObject {
 
     func setFocus(_ id: String) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        _ = cancelNoticeFocus()  // the user's choice wins over a notification's temporary focus
         focusId = id
         tasks[idx].pillBadge = nil  // clear badge when user brings task to focus
+    }
+
+    // MARK: - Temporary focus for notifications
+
+    /// How long a notified pill keeps the focus before the previous one comes back.
+    static let noticeFocusDuration: TimeInterval = 15
+
+    /// Pill that had the focus before notifications took it; it comes back once they are done.
+    private var focusBeforeNotice: String?
+    /// Pill holding the focus because of a notification.
+    private var noticeFocusId: String?
+    private var noticeReturn: DispatchWorkItem?
+    /// True when the notification opened the island, so it folds back when the notice ends.
+    private var noticeOpenedIsland = false
+
+    /// A pill that is not focused got a notification (finished / error): bring it to the
+    /// focus for `noticeFocusDuration`, then give the focus back to the pill that had it.
+    /// Several notifications in a row return to the original pill, not to an intermediate one.
+    /// The pill keeps its badge, so once it is back in the grid you still see it was notified.
+    /// If the island is not open, it opens on the overview so the notification is seen.
+    func focusForNotice(_ id: String) {
+        guard pendingApproval == nil else { return }  // the approval card owns the focus
+        guard tasks.contains(where: { $0.id == id }) else { return }
+        if focusId == id && noticeFocusId != id { return }  // already focused by the user
+        if noticeFocusId == nil {
+            focusBeforeNotice = focusId
+            noticeOpenedIsland = false
+        }
+        noticeFocusId = id
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { focusId = id }
+        if mode != .expanded {
+            noticeOpenedIsland = true
+            NotificationCenter.default.post(name: .hookExpand, object: IslandView.overview)
+        }
+
+        noticeReturn?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.endNoticeFocus() }
+        noticeReturn = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noticeFocusDuration, execute: work)
+    }
+
+    /// Stops the temporary focus without restoring anything. Returns the pill that had the
+    /// focus before the notifications, so an approval can restore that one instead.
+    func cancelNoticeFocus() -> String? {
+        noticeReturn?.cancel()
+        noticeReturn = nil
+        let original = noticeFocusId != nil ? focusBeforeNotice : nil
+        noticeFocusId = nil
+        focusBeforeNotice = nil
+        noticeOpenedIsland = false
+        return original
+    }
+
+    private func endNoticeFocus() {
+        guard let noticeId = noticeFocusId else { return }
+        let openedIsland = noticeOpenedIsland
+        let original = cancelNoticeFocus()
+        // Only give the focus back if the notified pill still holds it (or has gone away)
+        let noticeStillFocused = focusId == noticeId || !tasks.contains(where: { $0.id == noticeId })
+        guard noticeStillFocused else { return }
+        if let original, tasks.contains(where: { $0.id == original }) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { focusId = original }
+        }
+        // Fold the island back if the notification opened it and the user didn't go elsewhere
+        // (collapse() itself keeps it open while the mouse is over it).
+        if openedIsland, mode == .expanded, view == .overview, pendingApproval == nil {
+            NotificationCenter.default.post(name: .islandCollapse, object: nil)
+        }
     }
 
     func syncMode() {

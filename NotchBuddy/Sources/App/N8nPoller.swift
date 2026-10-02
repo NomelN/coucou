@@ -235,6 +235,7 @@ final class N8nPoller: @unchecked Sendable {
 
         if !focused {
             state.tasks[idx].pillBadge = success ? .finished : .error
+            state.focusForNotice("integration_n8n")
         }
         SoundEngine.shared.play(success ? "finish" : "error")
 

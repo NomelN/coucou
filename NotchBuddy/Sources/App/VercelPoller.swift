@@ -90,6 +90,7 @@ final class VercelPoller: @unchecked Sendable {
 
         if !focused {
             appState.tasks[idx].pillBadge = latest.isSuccess ? .finished : .error
+            appState.focusForNotice("integration_vercel")
         }
         SoundEngine.shared.play(latest.isSuccess ? "finish" : "error")
 
