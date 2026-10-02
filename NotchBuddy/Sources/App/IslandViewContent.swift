@@ -175,6 +175,8 @@ struct OverviewView: View {
             switchChatProvider(.google)
         case "ai_openai":
             switchChatProvider(.openai)
+        case "ai_deepseek":
+            switchChatProvider(.deepseek)
         case "integration_music":
             #if !APPSTORE
             MusicController.shared.openMusic()
@@ -824,7 +826,7 @@ struct PromptView: View {
                     .buttonStyle(.plain)
                     .popover(isPresented: $showModelPicker, arrowEdge: .bottom) {
                         ModelPickerView(state: state, isPresented: $showModelPicker)
-                            .frame(width: 300)
+                            .frame(width: 380)  // room for the 4 provider chips
                     }
                 }
                 .padding(.horizontal, 10)
@@ -964,6 +966,7 @@ struct ModelPickerView: View {
                             case .anthropic: state.claudeModel = model.id
                             case .google:    state.googleChatModel = model.id
                             case .openai:    state.openAIChatModel = model.id
+                            case .deepseek:  state.deepSeekChatModel = model.id
                             }
                             isPresented = false
                             SoundEngine.shared.play("blip")
@@ -1193,6 +1196,7 @@ struct IntegrationCardView: View {
         case "ai_anthropic":  return KeychainStore.shared.get("anthropic-api-key") != nil
         case "ai_google":     return KeychainStore.shared.get("google-api-key")    != nil
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
+        case "ai_deepseek":   return KeychainStore.shared.get("deepseek-api-key")  != nil
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -1303,12 +1307,13 @@ struct IntegrationCardView: View {
                    : nil
         if let err = svcErr { return err }
         let isHooks = task.id == "agent_gemini" || task.id == "agent_antigravity"
-        let isAI    = task.id == "ai_anthropic" || task.id == "ai_google" || task.id == "ai_openai"
+        let isAI    = PillCatalog.definition(for: task.id)?.category == .ai
         if isConfigured {
             if isHooks { return "Hooks installed" }
             if isAI {
                 let model = task.id == "ai_anthropic" ? appState.claudeModel
                           : task.id == "ai_google"    ? appState.googleChatModel
+                          : task.id == "ai_deepseek"  ? appState.deepSeekChatModel
                           :                             appState.openAIChatModel
                 return "Key configured · \(model)"
             }
@@ -1451,10 +1456,11 @@ struct IntegrationCardView: View {
                             .buttonStyle(.plain)
                         }
                         #endif
-                    } else if task.id == "ai_anthropic" || task.id == "ai_google" || task.id == "ai_openai" {
+                    } else if PillCatalog.definition(for: task.id)?.category == .ai {
                         if isConfigured {
                             let provider: ChatProvider = task.id == "ai_anthropic" ? .anthropic
-                                                       : task.id == "ai_google"    ? .google : .openai
+                                                       : task.id == "ai_google"    ? .google
+                                                       : task.id == "ai_deepseek"  ? .deepseek : .openai
                             Button("Chat with \(task.name)") {
                                 switchChatProvider(provider)
                             }

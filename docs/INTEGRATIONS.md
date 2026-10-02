@@ -128,16 +128,17 @@ Permissions : Enregistrement de l'écran (capture) et Automatisation (navigateur
 
 ---
 
-## 5bis. Autres fournisseurs du chat (Google AI, OpenAI)
+## 5bis. Autres fournisseurs du chat (Google AI, OpenAI, DeepSeek)
 
-Clés dans Settings → Chat — other providers (Trousseau : `google-api-key`, `openai-api-key`). La liste des modèles est récupérée à l'ouverture du chat selon le fournisseur :
+Clés dans Settings → Chat — other providers (Trousseau : `google-api-key`, `openai-api-key`, `deepseek-api-key`). La liste des modèles est récupérée à l'ouverture du chat selon le fournisseur :
 
 - **Google AI (Gemini)** : `GET https://generativelanguage.googleapis.com/v1beta/openai/models` (en-tête `Authorization: Bearer <clé>`) — on retire le préfixe `models/`, on filtre les modèles dont l'identifiant contient `embed`, `imagen`, `veo`, `aqa`, `tts`, `audio` ou `live`. Dans le chat, si le modèle enregistré n'est pas dans la liste reçue, le premier dont l'identifiant contient « flash », sinon le premier de la liste. Endpoint du chat : `POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`.
 - **OpenAI** : `GET https://api.openai.com/v1/models` (en-tête `Authorization: Bearer <clé>`) — triés par champ `created` décroissant, on filtre les modèles dont l'identifiant contient `embed`, `tts`, `whisper`, `dall-e`, `audio`, `realtime`, `moderat`, `codex`, `computer-use`, `transcribe`, `image`, `sora`, `babbage`, `davinci` ou `instruct`. Dans le chat, si le modèle enregistré n'est pas dans la liste reçue, le premier dont l'identifiant contient « mini », sinon le premier de la liste. Endpoint du chat : `POST https://api.openai.com/v1/chat/completions`.
+- **DeepSeek** : `GET https://api.deepseek.com/models` (en-tête `Authorization: Bearer <clé>`), sans filtre. Dans le chat, si le modèle enregistré n'est pas dans la liste reçue, le premier dont l'identifiant contient « chat », sinon le premier de la liste. Endpoint du chat : `POST https://api.deepseek.com/chat/completions`.
 
 Ce qui est envoyé au fournisseur lors d'un échange : le texte saisi et la conversation en cours. Si une fenêtre est attachée : nom de l'app, titre et URL. Si un fichier est attaché : son nom seulement (le contenu d'un fichier ne part que chez Anthropic).
 
-Voir le catalogue de pastilles dans `docs/SPEC.md` (section « Catalogue de pastilles ») pour les pastilles `ai_google` et `ai_openai`.
+Voir le catalogue de pastilles dans `docs/SPEC.md` (section « Catalogue de pastilles ») pour les pastilles `ai_google`, `ai_openai` et `ai_deepseek`.
 
 ---
 

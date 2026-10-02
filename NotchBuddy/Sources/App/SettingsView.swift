@@ -52,6 +52,7 @@ struct SettingsView: View {
     // Multi-provider chat keys
     @State private var googleKey: String  = KeychainStore.shared.get("google-api-key") ?? ""
     @State private var openAIKey: String  = KeychainStore.shared.get("openai-api-key") ?? ""
+    @State private var deepSeekKey: String = KeychainStore.shared.get("deepseek-api-key") ?? ""
 
     // Integration keys
     @State private var resendKey: String    = KeychainStore.shared.get("resend-api-key")  ?? ""
@@ -548,6 +549,20 @@ struct SettingsView: View {
                     statusMessage = "✓ OpenAI key saved."
                 }
                 .buttonStyle(.borderedProminent)
+
+                Divider()
+
+                HStack(spacing: 8) {
+                    Circle().fill(Color(hex: ChatProvider.deepseek.accentHex)).frame(width: 8, height: 8)
+                    Text("DeepSeek").font(.system(size: 12, weight: .semibold))
+                }
+                SecureField("API key (sk-…)", text: $deepSeekKey)
+                    .textFieldStyle(.roundedBorder)
+                Button("Save") {
+                    KeychainStore.shared.set("deepseek-api-key", value: deepSeekKey)
+                    statusMessage = "✓ DeepSeek key saved."
+                }
+                .buttonStyle(.borderedProminent)
             }
             .padding(.vertical, 4)
         }
@@ -941,7 +956,8 @@ struct SettingsView: View {
             #endif
             if def.category == .ai {
                 let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
-                           : def.id == "ai_google"    ? "google-api-key" : "openai-api-key"
+                           : def.id == "ai_google"    ? "google-api-key"
+                           : def.id == "ai_deepseek"  ? "deepseek-api-key" : "openai-api-key"
                 if KeychainStore.shared.get(keyId) == nil { return "Key not configured" }
             }
             return nil

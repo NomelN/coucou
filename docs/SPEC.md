@@ -98,7 +98,7 @@ Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source d
 |---|---|---|---|---|
 | `workspace` | Where you code | VS Code, Cursor, Antigravity *(GitHub only)*, Codex *(GitHub only)* | Integration | Claude Code / Cursor / Codex / Agent |
 | `agent` | Agents | Gemini CLI *(GitHub only)* | Agent | Agent |
-| `ai` | AI for the chat | Anthropic, Google AI, OpenAI | Chat | — |
+| `ai` | AI for the chat | Anthropic, Google AI, OpenAI, DeepSeek | Chat | — |
 | `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Apple Music *(GitHub only)* | Integration | — |
 
 Couleurs : Cursor `#C0C4CC`, Codex `#2DD4BF`, Gemini CLI `#8AB4F8`, Antigravity `#E879F9`, pastilles IA = `ChatProvider.accentHex`.
@@ -211,7 +211,7 @@ Petit item dans la barre de menus (icône : silhouette du Mochi, monochrome). Me
 
 Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Anthropic API** : clé (Trousseau), modèle (défaut `claude-sonnet-4-6` ; liste depuis l'API, voir INTEGRATIONS §5).
-- **Chat — other providers** : clé Google AI (Trousseau) ; clé OpenAI (Trousseau). Les modèles se choisissent dans le chat (voir INTEGRATIONS §5bis).
+- **Chat — other providers** : clé Google AI (Trousseau) ; clé OpenAI (Trousseau) ; clé DeepSeek (Trousseau). Les modèles se choisissent dans le chat (voir INTEGRATIONS §5bis).
 - **Claude Code Hooks** : état des hooks, bouton Installer / Désinstaller.
 - **Gemini CLI Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
