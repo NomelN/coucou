@@ -230,11 +230,17 @@ final class HookServer: @unchecked Sendable {
         let isVSCodeEditor = !isCursorEditor && (
             termProgram.lowercased().contains("vscode") ||
             bundleId.lowercased().contains("vscode"))
+        #if !APPSTORE
+        let isClaudeDesktop = bundleId.lowercased() == PillCatalog.claudeDesktopBundleId
+        #else
+        let isClaudeDesktop = false
+        #endif
 
         // Routing:
         // • "codex" → agent_codex (GitHub build only: workspace pill, approvals in the notch)
         // • other valid coucou_agent → external pill (fire-and-forget, no approval card)
         // • Cursor bundle ID → agent_cursor
+        // • Claude desktop app → agent_claude_desktop (GitHub build only; approvals stay in the app)
         // • VS Code → integration_claude
         #if !APPSTORE
         let isCodexEvent = rawAgent == "codex"
@@ -251,6 +257,9 @@ final class HookServer: @unchecked Sendable {
             isExternalAgent = true
         } else if isCursorEditor {
             agentId = "agent_cursor"
+            isExternalAgent = false
+        } else if isClaudeDesktop {
+            agentId = "agent_claude_desktop"
             isExternalAgent = false
         } else if isVSCodeEditor {
             agentId = "integration_claude"

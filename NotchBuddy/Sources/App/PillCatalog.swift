@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 // MARK: - Pill category
 
@@ -37,6 +37,7 @@ struct PillDefinition {
         case "integration_claude": return "Claude Code"
         case "agent_cursor":       return "Cursor"
         case "agent_codex":        return "Codex"
+        case "agent_claude_desktop": return "Claude"
         default:                   return "Agent"
         }
     }
@@ -55,6 +56,8 @@ enum PillCatalog {
         .init(id: "agent_antigravity",   name: "Antigravity", color: "#E879F9",
               category: .workspace, subtitle: "Integration",  source: .agent,  githubOnly: true),
         .init(id: "agent_codex",         name: "Codex",       color: "#2DD4BF",
+              category: .workspace, subtitle: "Integration",  source: .agent,  githubOnly: true),
+        .init(id: "agent_claude_desktop", name: "Claude",     color: "#D97757",
               category: .workspace, subtitle: "Integration",  source: .agent,  githubOnly: true),
         // ── Agents ───────────────────────────────────────────────────────────
         .init(id: "agent_gemini",        name: "Gemini CLI",  color: "#8AB4F8",
@@ -85,6 +88,8 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  source: .n8n),
         .init(id: "integration_music",   name: "Apple Music", color: "#FA2D48",
               category: .service,   subtitle: "Integration",  source: .n8n, githubOnly: true),
+        .init(id: "integration_chatgpt", name: "ChatGPT",     color: "#19C37D",
+              category: .service,   subtitle: "App",          source: .n8n, githubOnly: true),
     ]
 
     /// Pills available in the current build target.
@@ -94,6 +99,17 @@ enum PillCatalog {
         #else
         all
         #endif
+    }
+
+    /// Bundle ID of the Claude desktop app. Its Claude Code sessions run the same hooks as the CLI.
+    static let claudeDesktopBundleId = "com.anthropic.claudefordesktop"
+
+    /// The ChatGPT app (shortcut pill only: it sends no events). Newer builds ship with
+    /// Codex inside and the com.openai.codex bundle ID, so fall back to the app's usual path.
+    static var chatGPTAppURL: URL? {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.openai.chat") { return url }
+        let url = URL(fileURLWithPath: "/Applications/ChatGPT.app")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
     /// Default ID for the always-on main workspace pill.

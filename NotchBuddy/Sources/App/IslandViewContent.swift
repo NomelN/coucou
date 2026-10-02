@@ -159,6 +159,19 @@ struct OverviewView: View {
                 NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
             }
             #endif
+        case "agent_claude_desktop":
+            #if !APPSTORE
+            if let url = NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: PillCatalog.claudeDesktopBundleId) {
+                NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
+            }
+            #endif
+        case "integration_chatgpt":
+            #if !APPSTORE
+            if let url = PillCatalog.chatGPTAppURL {
+                NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
+            }
+            #endif
         case "agent_gemini", "agent_antigravity":
             #if !APPSTORE
             let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2",
@@ -1158,7 +1171,7 @@ struct IntegrationCardView: View {
 
     private var isConfigured: Bool {
         switch task.id {
-        case "integration_claude":
+        case "integration_claude", "agent_claude_desktop":  // the desktop app runs the same hooks
             #if APPSTORE
             // Sandboxed: can't read ~/.claude directly — check install flag set by HookServer
             return UserDefaults.standard.bool(forKey: "coucouHooksInstalled")
@@ -1187,6 +1200,12 @@ struct IntegrationCardView: View {
             #endif
         case "agent_cursor", "agent_codex":
             return false  // coming soon
+        case "integration_chatgpt":
+            #if !APPSTORE
+            return PillCatalog.chatGPTAppURL != nil
+            #else
+            return false
+            #endif
         case "integration_music":
             #if !APPSTORE
             return true  // Apple Music is always installed on macOS
@@ -1302,6 +1321,7 @@ struct IntegrationCardView: View {
         }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return "Coming soon" }
+        if task.id == "integration_chatgpt" { return isConfigured ? "Shortcut · opens the app" : "App not installed" }
         let svcErr = task.id == "integration_stripe" ? appState.stripeError
                    : task.id == "integration_calcom"  ? appState.calcomError
                    : nil
@@ -1430,6 +1450,21 @@ struct IntegrationCardView: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Color(hex: task.color).opacity(0.7))
                             .buttonStyle(.plain)
+                    } else if task.id == "agent_claude_desktop" || task.id == "integration_chatgpt" {
+                        #if !APPSTORE
+                        let appURL = task.id == "integration_chatgpt"
+                            ? PillCatalog.chatGPTAppURL
+                            : NSWorkspace.shared.urlForApplication(withBundleIdentifier: PillCatalog.claudeDesktopBundleId)
+                        if let appURL {
+                            Button(task.id == "integration_chatgpt" ? "Open ChatGPT" : "Open Claude") {
+                                NSWorkspace.shared.openApplication(at: appURL, configuration: .init(),
+                                                                   completionHandler: nil)
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: task.color).opacity(0.85))
+                            .buttonStyle(.plain)
+                        }
+                        #endif
                     } else if task.id == "agent_cursor" {
                         #if !APPSTORE
                         if let url = NSWorkspace.shared.urlForApplication(
@@ -1526,7 +1561,8 @@ struct IntegrationCardView: View {
                     if !isConfigured
                        && task.id != "agent_cursor"
                        && task.id != "agent_codex"
-                       && task.id != "integration_music" {
+                       && task.id != "integration_music"
+                       && task.id != "integration_chatgpt" {
                         Button("Settings…") {
                             let section: String
                             switch PillCatalog.definition(for: task.id)?.category {
