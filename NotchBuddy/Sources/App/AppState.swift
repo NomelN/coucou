@@ -264,7 +264,9 @@ final class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(mailAccountFilter, forKey: "mailAccountFilter")
             if let shown = mailShownAccount, !mailAccountFilter.contains(shown) { mailShownAccount = nil }
-            MailPoller.shared.poll()
+            // Deferred: this also runs while AppState.shared is being created (saved filter loaded
+            // at launch), and poll() reads AppState.shared — calling it now would crash.
+            Task { @MainActor in MailPoller.shared.poll() }
         }
     }
     /// Account shown in the Mail card (‹ › or the last account that got new mail). nil = the first one.
