@@ -393,6 +393,7 @@ final class IslandWindowController: NSWindowController {
             Task { @MainActor in
                 guard let self = self else { return }
                 if event.keyCode == 53 { // Escape
+                    if self.state.mode == .expanded { VoiceEngine.shared.stop() }
                     if self.state.mode == .expanded && !self.state.isPinned {
                         self.collapse()
                     }
@@ -901,6 +902,7 @@ extension Notification.Name {
     static let botSetTgEs       = Notification.Name("notchBuddy.botSetTgEs")
     static let botGulp          = Notification.Name("notchBuddy.botGulp")
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
+    static let botSpeakWord     = Notification.Name("notchBuddy.botSpeakWord")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")

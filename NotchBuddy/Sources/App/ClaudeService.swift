@@ -233,6 +233,7 @@ final class ClaudeService {
     // MARK: - Chat (multi-turn, natural text + web search)
 
     func chat(query: String, context: PromptContext?, state: AppState) async {
+        VoiceEngine.shared.stop(.chat)
         guard state.chatProvider == .anthropic else {
             await chatOpenAICompatible(query: query, context: context, state: state)
             return
@@ -405,6 +406,7 @@ final class ClaudeService {
                 if let idx = state.chatHistory.firstIndex(where: { $0.id == msgId }) {
                     state.chatHistory[idx].content = final
                 }
+                VoiceEngine.shared.chatAnswered(final)
                 state.stateOverride = nil
                 state.view = .prompt
                 NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
@@ -450,6 +452,7 @@ final class ClaudeService {
                 let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
                 conversationMessages.append(["role": "assistant", "content": trimmed])
                 state.chatHistory.append(ChatMessage(role: .assistant, content: trimmed))
+                VoiceEngine.shared.chatAnswered(trimmed)
                 state.stateOverride = nil
                 state.view = .prompt
                 NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
@@ -565,7 +568,9 @@ final class ClaudeService {
         }
 
         // Add to display history
-        state.chatHistory.append(ChatMessage(role: .assistant, content: text.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        state.chatHistory.append(ChatMessage(role: .assistant, content: answer))
+        VoiceEngine.shared.chatAnswered(answer)
 
         state.stateOverride = nil
         state.view = .prompt

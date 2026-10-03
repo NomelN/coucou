@@ -212,6 +212,23 @@ Fichiers `assets/sounds/*.wav` (48 kHz stéréo), rendus depuis le moteur du pro
 
 Pas de son pour les mises à jour silencieuses (défilé de tâches, mini-bonhommes qui changent d'état sauf alerte).
 
+### Voix (Coucou parle)
+
+`VoiceEngine` lit à voix haute avec `AVSpeechSynthesizer` (voix du Mac, rien ne sort du Mac). Désactivé par défaut. Les phrases suivent la langue de la voix : français pour une voix `fr-*`, anglais sinon. Le nom annoncé est celui du dossier de l'événement (avec alias), pas celui de la pastille, partagée entre sessions.
+
+| Événement | Phrase (voix française) | Réglage |
+|---|---|---|
+| fin de session (`Stop`) | « projet a terminé. » | When an agent finishes or fails |
+| échec (`StopFailure`) | « projet a rencontré une erreur. » | idem |
+| permission | « projet attend ton feu vert. » | Permissions and questions |
+| question (`AskUserQuestion`) | « projet te pose une question. » + texte de la 1re question | idem |
+| réponse du chat | la réponse sans Markdown (code, liens, emphase retirés), coupée à la fin de phrase avant 600 caractères | Chat answers (off par défaut) |
+
+- Une alerte coupe ce qui est en cours ; une réponse du chat ne coupe jamais une alerte.
+- Carte de permission ou de question répondue ou fermée → l'annonce s'arrête. Nouvelle question au chat → l'ancienne réponse s'arrête. `Échap` island ouverte → silence.
+- Pendant la parole, Mochi fait un petit hochement à chaque mot (`speakBob`, notification `.botSpeakWord`), sauf pendant une animation plus grande.
+- La voix ne valide jamais une permission : on lit la demande, la réponse reste un clic.
+
 ## 10. Barre de menus et réglages
 
 Petit item dans la barre de menus (icône : silhouette du Mochi, monochrome). Menu : Ouvrir le notch, Lancer la démo (⌃⌥⌘D), Réglages…, Debug ▸ (forcer chaque vue, chaque état, chaque émote, ajouter des tâches factices), Quitter.
@@ -226,6 +243,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Integrations** : clé ou token (Trousseau) pour chaque service (n8n, Stripe, GitHub, Vercel, Resend, Notion, Cal.com).
 - **Sound** : son on/off, volume.
+- **Voice** : Coucou speaks on/off, choix de la voix (langues de l'utilisateur + anglais, sans voix fantaisie, meilleure qualité d'abord ; « System voice » = voix système de la langue), bouton Test, et ce qui est lu : fin/échec d'agent, permissions et questions, réponses du chat. Voir §9.
 - **Behavior** : fermeture après N s d'inactivité ; masquage après N min sans mouvement.
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.

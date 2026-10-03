@@ -114,6 +114,9 @@ struct BotCanvasView: View {
         .onReceive(NotificationCenter.default.publisher(for: .botGreet)) { _ in
             engine.greet()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .botSpeakWord)) { _ in
+            engine.speakBob()
+        }
         .onAppear {
             engine.setState(state.effectiveState, force: true)
         }

@@ -490,6 +490,7 @@ final class HookServer: @unchecked Sendable {
                 }
             }
             SoundEngine.shared.play("finish")
+            VoiceEngine.shared.agentFinished(projectName)
             if focused {
                 expandIfNeeded(to: .finished)
             } else {
@@ -508,6 +509,7 @@ final class HookServer: @unchecked Sendable {
         case "StopFailure":
             state.updateTask(id: agentId, state: .error)
             SoundEngine.shared.play("error")
+            VoiceEngine.shared.agentFailed(projectName)
             if focused {
                 expandIfNeeded(to: .error)
             } else {
@@ -701,6 +703,7 @@ final class HookServer: @unchecked Sendable {
                                               command: command, inputKey: inputKey, pillId: pillId)
         state.isPinned = true
         SoundEngine.shared.play("approval")
+        VoiceEngine.shared.approvalNeeded(projectName)
 
         // Approval always forces the island open — user must be able to respond.
         // Save current focus so we can restore it when the card is dismissed.
@@ -846,6 +849,8 @@ final class HookServer: @unchecked Sendable {
         state.pendingQuestion = parsed
         state.isPinned = true
         SoundEngine.shared.play("approval")
+        VoiceEngine.shared.questionAsked(projectName,
+                                         question: parsed.questions.first?.question ?? "")
 
         // If a notification had taken the focus, restore the pill from before it instead.
         let beforeNotice = state.cancelNoticeFocus()

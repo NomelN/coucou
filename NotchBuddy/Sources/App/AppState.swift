@@ -53,6 +53,24 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
     }
 
+    // Coucou speaks (VoiceEngine) — persisted, off by default
+    @Published var voiceEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(voiceEnabled, forKey: "voiceEnabled") }
+    }
+    // Empty = the system voice for the user's language
+    @Published var voiceIdentifier: String = "" {
+        didSet { UserDefaults.standard.set(voiceIdentifier, forKey: "voiceIdentifier") }
+    }
+    @Published var voiceSpeaksAgents: Bool = true {
+        didSet { UserDefaults.standard.set(voiceSpeaksAgents, forKey: "voiceSpeaksAgents") }
+    }
+    @Published var voiceSpeaksAlerts: Bool = true {
+        didSet { UserDefaults.standard.set(voiceSpeaksAlerts, forKey: "voiceSpeaksAlerts") }
+    }
+    @Published var voiceSpeaksChat: Bool = false {
+        didSet { UserDefaults.standard.set(voiceSpeaksChat, forKey: "voiceSpeaksChat") }
+    }
+
     // Claude model used by the chat and the search — persisted
     static let defaultClaudeModel = "claude-sonnet-4-6"
     @Published var claudeModel: String = AppState.defaultClaudeModel {
@@ -298,10 +316,16 @@ final class AppState: ObservableObject {
     @Published var chatHistory: [ChatMessage] = []
 
     // Pending approval request from Claude Code hook
-    @Published var pendingApproval: ApprovalInfo? = nil
+    @Published var pendingApproval: ApprovalInfo? = nil {
+        // Answered or dismissed: stop announcing it
+        didSet { if pendingApproval == nil, oldValue != nil { VoiceEngine.shared.stop(.alert) } }
+    }
 
     // Pending AskUserQuestion from Claude Code hook
-    @Published var pendingQuestion: AskQuestion? = nil
+    @Published var pendingQuestion: AskQuestion? = nil {
+        // Answered or dismissed: stop announcing it
+        didSet { if pendingQuestion == nil, oldValue != nil { VoiceEngine.shared.stop(.alert) } }
+    }
 
     // Per-pill flat list of FileDiffs, in order of reception.
     // Not @Published — steps[] changes already trigger redraws.
@@ -415,6 +439,11 @@ final class AppState: ObservableObject {
 
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
         if let v = ud.object(forKey: "soundVolume")  as? Double { soundVolume  = v }
+        if let v = ud.object(forKey: "voiceEnabled")      as? Bool { voiceEnabled      = v }
+        if let v = ud.string(forKey: "voiceIdentifier")             { voiceIdentifier   = v }
+        if let v = ud.object(forKey: "voiceSpeaksAgents") as? Bool { voiceSpeaksAgents = v }
+        if let v = ud.object(forKey: "voiceSpeaksAlerts") as? Bool { voiceSpeaksAlerts = v }
+        if let v = ud.object(forKey: "voiceSpeaksChat")   as? Bool { voiceSpeaksChat   = v }
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }
         if let v = ud.string(forKey: "chatProvider"), let p = ChatProvider(rawValue: v) { chatProvider = p }

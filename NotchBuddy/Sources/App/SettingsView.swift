@@ -1,6 +1,7 @@
 import SwiftUI
 import ServiceManagement
 import AppKit
+import AVFoundation
 
 struct SettingsView: View {
     @ObservedObject private var state = AppState.shared
@@ -26,6 +27,7 @@ struct SettingsView: View {
     private var displayModels: [(id: String, label: String)] {
         fetchedModels.isEmpty ? Self.fallbackModels : fetchedModels
     }
+    @State private var voices = VoiceEngine.availableVoices()
     @State private var launchAtStartup: Bool = (SMAppService.mainApp.status == .enabled)
     @State private var statusMessage: String = ""
     @State private var showDiff: Bool = false
@@ -233,6 +235,34 @@ struct SettingsView: View {
                         .frame(width: 36, alignment: .trailing)
                         .monospacedDigit()
                 }
+            }
+            .padding(6)
+        }
+
+        GroupBox("Voice") {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Coucou speaks", isOn: $state.voiceEnabled)
+                Group {
+                    HStack(spacing: 8) {
+                        Text("Voice")
+                            .frame(width: 56, alignment: .leading)
+                        Picker("", selection: $state.voiceIdentifier) {
+                            Text("System voice").tag("")
+                            ForEach(voices, id: \.identifier) { voice in
+                                Text(VoiceEngine.label(for: voice)).tag(voice.identifier)
+                            }
+                        }
+                        .labelsHidden()
+                        Button("Test") { VoiceEngine.shared.test() }
+                    }
+                    Toggle("When an agent finishes or fails", isOn: $state.voiceSpeaksAgents)
+                    Toggle("Permissions and questions", isOn: $state.voiceSpeaksAlerts)
+                    Toggle("Chat answers", isOn: $state.voiceSpeaksChat)
+                }
+                .disabled(!state.voiceEnabled)
+                Text("Uses the Mac's own voices, nothing leaves the Mac. Escape stops it. More voices in System Settings → Accessibility → Spoken Content.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
             }
             .padding(6)
         }

@@ -73,6 +73,7 @@
 		C808B654C84D9F71DBF8493A /* GithubPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CB8B6E5E9DA6164F979E88F /* GithubPoller.swift */; };
 		C940B651C6CA952D99388E04 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
 		CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1A8206F73376F4CAF2057 /* IslandRootView.swift */; };
+		CB7924F48A5CC6EA62DA0BB8 /* VoiceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5315DE72FB4B7D75C78AB46C /* VoiceEngine.swift */; };
 		CD8DECA66B9E09C97E469DB9 /* BotCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */; };
 		D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */; };
 		D82E93014C8087AE81511E40 /* IslandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */; };
@@ -85,6 +86,7 @@
 		E81575CE4433C6F88E424A8F /* LocalChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8790ACE9F73BD74640A0F20C /* LocalChat.swift */; };
 		E9C21D11BCB72C392436D19E /* ClaudePlanGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */; };
 		EB23ED9F1C12EA8B54A76A91 /* ResendPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B5FDDE03F5F711146937E2 /* ResendPoller.swift */; };
+		EB83E5D3E5FFC1399D526932 /* VoiceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5315DE72FB4B7D75C78AB46C /* VoiceEngine.swift */; };
 		ECECA2F225E82B7C951658D7 /* UploadSequenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */; };
 		ED5D9A334DE08C0EB81DE322 /* AskQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */; };
 		F06EE0A97CB77096A337AA8B /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = C066E2B991AA4F56B2724263 /* sounds */; };
@@ -106,6 +108,7 @@
 		4DC2A07E42245A8CF3BBD2AB /* CoucouAppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoucouAppStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F142FB3952B5F0639383047 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
 		506824380E9C80B9BC6DCE72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5315DE72FB4B7D75C78AB46C /* VoiceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceEngine.swift; sourceTree = "<group>"; };
 		61B5FDDE03F5F711146937E2 /* ResendPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResendPoller.swift; sourceTree = "<group>"; };
 		6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadSequenceEngine.swift; sourceTree = "<group>"; };
 		71718D1B87A39A4879DD2A9D /* VercelPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelPoller.swift; sourceTree = "<group>"; };
@@ -183,6 +186,7 @@
 				6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */,
 				F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */,
 				71718D1B87A39A4879DD2A9D /* VercelPoller.swift */,
+				5315DE72FB4B7D75C78AB46C /* VoiceEngine.swift */,
 				E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */,
 			);
 			path = App;
@@ -365,6 +369,7 @@
 				FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */,
 				8A6B3688D6B3BF728D106D8B /* UserIdentity.swift in Sources */,
 				118FC4AE0AC74D84B4A134D8 /* VercelPoller.swift in Sources */,
+				EB83E5D3E5FFC1399D526932 /* VoiceEngine.swift in Sources */,
 				2875610F701376BD65573386 /* WindowContextCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -412,6 +417,7 @@
 				ECECA2F225E82B7C951658D7 /* UploadSequenceEngine.swift in Sources */,
 				63F9F3AAC881D3EDDDD8AED9 /* UserIdentity.swift in Sources */,
 				0E83C1DD4D20E7FB7A904450 /* VercelPoller.swift in Sources */,
+				CB7924F48A5CC6EA62DA0BB8 /* VoiceEngine.swift in Sources */,
 				2CC2E3B688B15BBEB3AE3BCE /* WindowContextCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

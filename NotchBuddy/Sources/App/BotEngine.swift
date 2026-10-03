@@ -335,6 +335,18 @@ final class BotEngine: ObservableObject {
         ])
     }
 
+    // MARK: - Speaking (VoiceEngine)
+
+    /// A small nod on each spoken word. Skipped while a bigger squash or jump plays.
+    func speakBob() {
+        guard !isMini, morph < 0.05, !locks.contains("sy") else { return }
+        anim("sy", keys: [
+            TweenKey(target: 0.95, duration: 60,  ease: Ease.out),
+            TweenKey(target: 1.03, duration: 90,  ease: Ease.out),
+            TweenKey(target: 1,    duration: 110, ease: Ease.inOut),
+        ])
+    }
+
     // MARK: - Gulp (mailbox swallow)
 
     func gulp() {
