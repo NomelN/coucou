@@ -230,7 +230,12 @@ Pas de son pour les mises à jour silencieuses (défilé de tâches, mini-bonhom
 - **Voix Mochi** (choix par défaut, identifiant vide) : répliques enregistrées dans `Resources/voice/` (créées avec ElevenLabs, converties en WAV 48 kHz stéréo, silences coupés, volume égalisé). Une réplique = `nom.wav` ou des variantes `nom-1.wav`, `nom-2.wav`… tirées au hasard, jamais deux fois la même d'affilée. Elle démarre 0,45 s après le son de l'événement. Mochi hoche la tête à chaque remontée du volume (mesure du lecteur, 30 Hz, seulement pendant la réplique). Événement sans réplique → voix du Mac. Les WAV restent hors de git (`.gitignore`, voir `Resources/voice/README.md`) : sans eux, « Mochi » disparaît du choix et la voix du Mac prend le relais.
 - **Voix du Mac** (`AVSpeechSynthesizer`) : « System voice » ou une voix choisie. Lit aussi les réponses du chat en mode Mochi. Les phrases suivent la langue de la voix : français pour une voix `fr-*` (et pour Mochi), anglais sinon.
 
-Répliques de Mochi : `fini` (fin), `erreur` (échec), `feu-vert` (permission), `question` (question, sans lire la question), `limite` (limite d'usage). Le nom annoncé est celui du dossier de l'événement (avec alias), pas celui de la pastille, partagée entre sessions.
+Répliques de Mochi :
+- agents : `fini` (fin), `erreur` (échec), `feu-vert` (permission), `question` (question, sans lire la question), `limite` (limite d'usage) ;
+- services (réglage « Services ») : `deploy-ok` / `deploy-erreur` (Vercel), `ci-ok` / `ci-erreur` / `review` (GitHub pulse, l'événement le plus important d'un relevé), `paiement` (Stripe), `mail` (nouveau mail), `mail-envoye` (mail envoyé depuis le notch). Sans réplique → voix du Mac (« Nouveau paiement : 49 € ») ;
+- réactions (réglage « Mochi's reactions », voix Mochi seulement, jamais la voix du Mac) : `coucou` (accueil au lancement et au retour d'absence, pas à chaque survol), `claque` (claque, sauf la 3e), `sonne` (sonné après 3 claques), `amour` (souris immobile sur Mochi), `fier` (résultat de recherche), `fichier` (fichier avalé). `baille` attend un déclencheur : l'état `sleeping` n'est jamais activé.
+
+Les répliques s'ajoutent aux sons de Coucou, elles ne les remplacent pas. Priorité : alertes d'agent > services et chat > réactions ; une nouvelle réplique coupe celle en cours sauf si celle-ci est prioritaire. Le nom annoncé est celui du dossier de l'événement (avec alias), pas celui de la pastille, partagée entre sessions.
 
 | Événement | Phrase (voix française) | Réglage |
 |---|---|---|
@@ -241,7 +246,7 @@ Répliques de Mochi : `fini` (fin), `erreur` (échec), `feu-vert` (permission), 
 | limite d'usage (`Notification` rate limit) | « projet a atteint sa limite d'usage. » | When an agent finishes or fails |
 | réponse du chat | la réponse sans Markdown (code, liens, emphase retirés), coupée à la fin de phrase avant 600 caractères | Chat answers (off par défaut) |
 
-- Une alerte coupe ce qui est en cours ; une réponse du chat ne coupe jamais une alerte.
+- Une alerte coupe ce qui est en cours ; une réponse du chat ou un service ne coupe jamais une alerte ; une réaction ne coupe jamais rien d'autre qu'une réaction.
 - Carte de permission ou de question répondue ou fermée → l'annonce s'arrête. Nouvelle question au chat → l'ancienne réponse s'arrête. `Échap` island ouverte → silence.
 - Pendant la parole, Mochi fait un petit hochement à chaque mot (`speakBob`, notification `.botSpeakWord`), sauf pendant une animation plus grande.
 - La voix ne valide jamais une permission : on lit la demande, la réponse reste un clic.

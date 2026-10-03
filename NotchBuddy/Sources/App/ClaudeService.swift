@@ -626,6 +626,7 @@ final class ClaudeService {
         state.stateOverride = nil
         state.view = .result
         NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.proud)
+        VoiceEngine.shared.proud()
     }
 
     private func showError(_ message: String, state: AppState) async {

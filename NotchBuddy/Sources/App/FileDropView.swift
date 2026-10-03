@@ -74,6 +74,7 @@ enum FileDropHandler {
 
         // Drop feedback
         NotificationCenter.default.post(name: .botGulp, object: nil)
+        VoiceEngine.shared.swallowed()
         SoundEngine.shared.play("approve")
         NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
         NotificationCenter.default.post(name: .botMorphTo, object: CGFloat(0))

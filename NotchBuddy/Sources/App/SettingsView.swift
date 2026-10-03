@@ -263,6 +263,9 @@ struct SettingsView: View {
                     Toggle("When an agent finishes or fails", isOn: $state.voiceSpeaksAgents)
                     Toggle("Permissions and questions", isOn: $state.voiceSpeaksAlerts)
                     Toggle("Chat answers", isOn: $state.voiceSpeaksChat)
+                    Toggle("Services: deploys, CI and reviews, payments, mail", isOn: $state.voiceSpeaksServices)
+                    Toggle("Mochi's reactions: hello, slaps, love, finds, files", isOn: $state.voiceSpeaksReactions)
+                        .disabled(!VoiceEngine.hasMochiLines || !state.voiceIdentifier.isEmpty)
                 }
                 .disabled(!state.voiceEnabled)
                 Text("Mochi plays its own recorded lines; chat answers use the Mac's voice. Nothing leaves the Mac. Escape stops it. More voices in System Settings → Accessibility → Spoken Content.")

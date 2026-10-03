@@ -103,6 +103,7 @@ final class VercelPoller: @unchecked Sendable {
             appState.focusForNotice("integration_vercel")
         }
         SoundEngine.shared.play(latest.isSuccess ? "finish" : "error")
+        VoiceEngine.shared.deployFinished(latest.projectName, success: latest.isSuccess)
 
         // Reveal compact island so user sees the badge
         NotificationCenter.default.post(name: .hookReveal, object: nil)

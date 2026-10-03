@@ -392,6 +392,7 @@ final class BotEngine: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 SoundEngine.shared.play("annoyed")
             }
+            VoiceEngine.shared.slapped()
         }
     }
 

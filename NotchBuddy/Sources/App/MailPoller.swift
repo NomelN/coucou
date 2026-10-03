@@ -132,6 +132,7 @@ final class MailPoller {
         state.focusForNotice("integration_mail")
         NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.surprised)
         SoundEngine.shared.play("pop")
+        VoiceEngine.shared.mailReceived(from: newest.sender)
         appendAppLog("mail.log", "New mail notified")
 
         // Auto-clear after 60s, like the other services

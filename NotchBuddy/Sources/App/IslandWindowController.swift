@@ -324,6 +324,7 @@ final class IslandWindowController: NSWindowController {
             self.lastLoveTime = CACurrentMediaTime()
             NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.love)
             SoundEngine.shared.play("love")
+            VoiceEngine.shared.loved()
         }
         botHoverTimer = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.9, execute: item)
@@ -778,6 +779,7 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Dizzy recovery (triggered by BotEngine.slap via .botDizzy)
 
     private func handleDizzy() {
+        VoiceEngine.shared.dizzy()
         let prevView = state.view
         state.stateOverride = .dizzy
         expand(to: .confused)

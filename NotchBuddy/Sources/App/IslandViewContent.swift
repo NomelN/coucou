@@ -1096,6 +1096,7 @@ struct MailView: View {
 
     private func onSuccess(recipient: String) {
         SoundEngine.shared.play("send")
+        VoiceEngine.shared.mailSent()
         NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.wink)
         state.noteMessage = "Email sent to \(recipient)."
         state.view = .note

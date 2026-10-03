@@ -601,7 +601,10 @@ struct GreetingCanvasView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
             return item
         }
-        soundWork1 = schedule(GT.pop0)  { SoundEngine.shared.play("greet") }
+        soundWork1 = schedule(GT.pop0)  {
+            SoundEngine.shared.play("greet")
+            VoiceEngine.shared.greeted()
+        }
         soundWork2 = schedule(GT.badge) { SoundEngine.shared.play("blip")  }
         // doneWork is a safety fallback; normal path fires via .onChange
         doneWork = schedule(GT.end + 0.05) { fireGreetComplete() }

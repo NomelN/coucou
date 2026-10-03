@@ -143,6 +143,7 @@ final class StripePoller: @unchecked Sendable {
             state.focusForNotice("integration_stripe")
         }
         SoundEngine.shared.play("finish")
+        VoiceEngine.shared.paymentReceived(newest.amountFormatted)
 
         // 2. After slide settles, count up balance
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

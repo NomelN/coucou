@@ -70,6 +70,13 @@ final class AppState: ObservableObject {
     @Published var voiceSpeaksChat: Bool = false {
         didSet { UserDefaults.standard.set(voiceSpeaksChat, forKey: "voiceSpeaksChat") }
     }
+    @Published var voiceSpeaksServices: Bool = true {
+        didSet { UserDefaults.standard.set(voiceSpeaksServices, forKey: "voiceSpeaksServices") }
+    }
+    // Mochi voice only: greeting, slaps, love, proud, swallowed file
+    @Published var voiceSpeaksReactions: Bool = true {
+        didSet { UserDefaults.standard.set(voiceSpeaksReactions, forKey: "voiceSpeaksReactions") }
+    }
 
     // Claude model used by the chat and the search — persisted
     static let defaultClaudeModel = "claude-sonnet-4-6"
@@ -438,6 +445,8 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "voiceSpeaksAgents") as? Bool { voiceSpeaksAgents = v }
         if let v = ud.object(forKey: "voiceSpeaksAlerts") as? Bool { voiceSpeaksAlerts = v }
         if let v = ud.object(forKey: "voiceSpeaksChat")   as? Bool { voiceSpeaksChat   = v }
+        if let v = ud.object(forKey: "voiceSpeaksServices")  as? Bool { voiceSpeaksServices  = v }
+        if let v = ud.object(forKey: "voiceSpeaksReactions") as? Bool { voiceSpeaksReactions = v }
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }
         if let v = ud.string(forKey: "chatProvider"), let p = ChatProvider(rawValue: v) { chatProvider = p }
@@ -639,6 +648,12 @@ final class AppState: ObservableObject {
         // Only set badge when the GitHub pill is not currently in focus
         if let b = badge, focusId != "integration_github" { setPillBadge(b, for: "integration_github") }
         if let s = sound { SoundEngine.shared.play(s) }
+        switch level {
+        case 3:  VoiceEngine.shared.ciFailed()
+        case 2:  VoiceEngine.shared.reviewRequested()
+        case 1:  VoiceEngine.shared.ciPassed()
+        default: break
+        }
     }
 
     func syncMode() {

@@ -8,8 +8,19 @@ import AVFoundation
 final class VoiceEngine: NSObject {
     static let shared = VoiceEngine()
 
-    /// What is being said. An alert cuts anything else; a chat answer never cuts an alert.
-    enum Kind { case alert, chat, test }
+    /// What is being said. Something new cuts what is playing unless that ranks higher:
+    /// agent alerts first, then service notices and chat answers, then Mochi's reactions.
+    enum Kind {
+        case alert, notice, chat, reaction, test
+
+        var rank: Int {
+            switch self {
+            case .alert, .test:   return 3
+            case .notice, .chat:  return 2
+            case .reaction:       return 1
+            }
+        }
+    }
 
     private let synth = AVSpeechSynthesizer()
     private var currentKind: Kind?
@@ -24,6 +35,8 @@ final class VoiceEngine: NSObject {
 
     /// Mochi's line starts once the event's chime is mostly over.
     private static let chimeDelay: TimeInterval = 0.45
+    /// A reaction follows Mochi's own little sound or move.
+    private static let reactionDelay: TimeInterval = 0.2
     private static let lineVolume: Float = 0.8
 
     private var isBusy: Bool { synth.isSpeaking || player?.isPlaying == true || pendingLine != nil }
@@ -121,6 +134,65 @@ final class VoiceEngine: NSObject {
         say(line: "question", else: french ? "\(name) te pose une question. \(q)" : "\(name) has a question. \(q)", kind: .alert)
     }
 
+    // MARK: - Services
+
+    func deployFinished(_ project: String, success: Bool) {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        if success {
+            say(line: "deploy-ok", else: french ? "Déploiement de \(project) réussi." : "\(project) deployed.", kind: .notice)
+        } else {
+            say(line: "deploy-erreur", else: french ? "Le déploiement de \(project) a échoué." : "\(project) failed to deploy.", kind: .notice)
+        }
+    }
+
+    func ciFailed() {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        say(line: "ci-erreur", else: french ? "La CI a échoué." : "CI failed.", kind: .notice)
+    }
+
+    func ciPassed() {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        say(line: "ci-ok", else: french ? "La CI est passée." : "CI passed.", kind: .notice)
+    }
+
+    func reviewRequested() {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        say(line: "review", else: french ? "Quelqu'un attend ta relecture." : "Someone is waiting for your review.", kind: .notice)
+    }
+
+    func paymentReceived(_ amount: String) {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        say(line: "paiement", else: french ? "Nouveau paiement : \(amount)." : "New payment: \(amount).", kind: .notice)
+    }
+
+    func mailReceived(from sender: String) {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        let who = sender.isEmpty ? "" : (french ? " de \(sender)" : " from \(sender)")
+        say(line: "mail", else: french ? "Nouveau mail\(who)." : "New mail\(who).", kind: .notice)
+    }
+
+    func mailSent() {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        say(line: "mail-envoye", else: french ? "Mail envoyé." : "Mail sent.", kind: .notice)
+    }
+
+    // MARK: - Mochi's reactions (recorded lines only, no Mac voice)
+
+    func greeted()   { react("coucou") }
+    func slapped()   { react("claque") }
+    func dizzy()     { react("sonne") }
+    func loved()     { react("amour") }
+    func proud()     { react("fier") }
+    func swallowed() { react("fichier") }
+
+    private func react(_ name: String) {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksReactions,
+              usesMochi, let url = line(name) else { return }
+        play(url, kind: .reaction, delay: Self.reactionDelay)
+    }
+
+    // MARK: - Chat
+
     func chatAnswered(_ markdown: String) {
         guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksChat else { return }
         let text = Self.shortened(Self.plainText(markdown), max: Self.maxChatLength)
@@ -147,10 +219,10 @@ final class VoiceEngine: NSObject {
         }
     }
 
-    /// Makes room for something new. False when it must not play: a chat answer never cuts an alert.
+    /// Makes room for something new. False when what is playing ranks higher (see `Kind`).
     private func makeRoom(for kind: Kind) -> Bool {
         guard isBusy else { return true }
-        if kind == .chat, currentKind == .alert { return false }
+        if let current = currentKind, kind.rank < current.rank { return false }
         silence()
         return true
     }
