@@ -268,7 +268,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Voice** : Coucou speaks on/off, choix de la voix (« Mochi » = répliques enregistrées, « System voice » = voix système de la langue, puis les voix du Mac des langues de l'utilisateur + anglais, sans voix fantaisie, meilleure qualité d'abord), bouton Test, et ce qui est lu : fin/échec d'agent, permissions et questions, réponses du chat. Voir §9.
 - **Behavior** : fermeture après N s d'inactivité ; masquage après N min sans mouvement.
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
-- **Hotkey** : raccourci global pour ouvrir le notch.
+- **Hotkey** : raccourci global pour ouvrir le notch, et le refermer s'il est ouvert (sauf carte épinglée). Enregistré auprès du système (`RegisterEventHotKey`, `GlobalHotKey.swift`) : aucune autorisation Accessibilité, marche dans le bac à sable App Store, et la touche ne va qu'à Coucou (l'app au premier plan ne la reçoit pas, donc éviter les raccourcis courants comme ⌘O). Suspendu pendant l'enregistrement d'un nouveau raccourci dans Réglages.
 - **Startup** : lancer au démarrage (`SMAppService.mainApp`).
 
 ## 11. Jalons

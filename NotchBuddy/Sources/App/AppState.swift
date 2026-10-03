@@ -249,13 +249,22 @@ final class AppState: ObservableObject {
 
     // Hotkey to show island (e.g. ⌘⇧N)
     @Published var hotkeyEnabled: Bool = false {
-        didSet { UserDefaults.standard.set(hotkeyEnabled, forKey: "hotkeyEnabled") }
+        didSet {
+            UserDefaults.standard.set(hotkeyEnabled, forKey: "hotkeyEnabled")
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
     }
     var hotkeyFlags: UInt = NSEvent.ModifierFlags([.command, .shift]).rawValue {
-        didSet { UserDefaults.standard.set(Int(hotkeyFlags), forKey: "hotkeyFlags") }
+        didSet {
+            UserDefaults.standard.set(Int(hotkeyFlags), forKey: "hotkeyFlags")
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
     }
     var hotkeyCode: UInt16 = 45 {  // 'n'
-        didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
+        didSet {
+            UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode")
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
     }
 
     // Vercel project filter — empty = watch all projects

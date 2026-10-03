@@ -524,16 +524,19 @@ final class IslandWindowController: NSWindowController {
             finishDrag()
         }
 
-        // Global hotkey to show island
-        NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            Task { @MainActor in
-                guard let self, self.state.hotkeyEnabled else { return }
-                let pressed = event.modifierFlags.intersection([.command, .control, .option, .shift]).rawValue
-                guard pressed == self.state.hotkeyFlags, event.keyCode == self.state.hotkeyCode else { return }
-                if self.state.mode == .hidden || self.state.mode == .compact {
-                    self.expand(to: .overview)
-                }
+        // Global hotkey: opens the island, or folds it when it is open
+        GlobalHotKey.shared.onPress = { [weak self] in
+            guard let self else { return }
+            if self.state.mode == .expanded {
+                if !self.state.isPinned { self.collapse() }
+            } else {
+                self.fsm.openedExternally()
+                self.expand(to: self.defaultView())
             }
+        }
+        GlobalHotKey.shared.refresh()
+        NotificationCenter.default.addObserver(forName: .hotkeyChanged, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { GlobalHotKey.shared.refresh() }
         }
 
         // Track last external app for window context capture
@@ -913,6 +916,7 @@ extension Notification.Name {
     static let botGulp          = Notification.Name("notchBuddy.botGulp")
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
     static let botSpeakWord     = Notification.Name("notchBuddy.botSpeakWord")
+    static let hotkeyChanged    = Notification.Name("notchBuddy.hotkeyChanged")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")

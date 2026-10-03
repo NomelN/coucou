@@ -1479,6 +1479,7 @@ struct ShortcutRecorderButton: View {
         Button {
             guard !isRecording else { return }
             isRecording = true
+            GlobalHotKey.shared.pause()  // so the current shortcut reaches the recorder
             var token: Any?
             token = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
@@ -1488,6 +1489,7 @@ struct ShortcutRecorderButton: View {
                     self.code = event.keyCode
                     self.isRecording = false
                     if let t = token { NSEvent.removeMonitor(t) }
+                    GlobalHotKey.shared.resume()
                 }
                 return nil
             }
