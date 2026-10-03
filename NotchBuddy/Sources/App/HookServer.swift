@@ -473,6 +473,7 @@ final class HookServer: @unchecked Sendable {
             if lower.contains("rate limit") || lower.contains("limite d") {
                 state.updateTask(id: agentId, state: .ratelimit)
                 SoundEngine.shared.play("rate")
+                VoiceEngine.shared.rateLimited(projectName)
             } else if message.hasSuffix("?") {
                 state.updateTask(id: agentId, state: .question)
                 appendStep(id: agentId, step: message)

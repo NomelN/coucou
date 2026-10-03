@@ -54,6 +54,7 @@
 		78B3C6814431B2DD9D1F4949 /* SoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */; };
 		78FCEDC8F78B683AB10E6529 /* NotionPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */; };
 		7C75CCB3DC0116D8D3B12313 /* AskQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */; };
+		7F5E583E21B149667DB6B84F /* voice in Resources */ = {isa = PBXBuildFile; fileRef = 92A1B0FD91AA3521FB60668F /* voice */; };
 		82E9468CB03A0B5E793EA78D /* MailPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B42FD2407673A22F9075826 /* MailPoller.swift */; };
 		862CE6CB220D55E46F646DA9 /* GitHubPulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D3AD61802A32C4833F3EDA /* GitHubPulse.swift */; };
 		878924960FC0F2B3524D48AC /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
@@ -93,6 +94,7 @@
 		EB83E5D3E5FFC1399D526932 /* VoiceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5315DE72FB4B7D75C78AB46C /* VoiceEngine.swift */; };
 		ECECA2F225E82B7C951658D7 /* UploadSequenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */; };
 		ED5D9A334DE08C0EB81DE322 /* AskQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */; };
+		EE5F528D02D3EAF1E9D96A3D /* voice in Resources */ = {isa = PBXBuildFile; fileRef = 92A1B0FD91AA3521FB60668F /* voice */; };
 		F06EE0A97CB77096A337AA8B /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = C066E2B991AA4F56B2724263 /* sounds */; };
 		FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */; };
 		FBBC4CDE82B5886A83A27D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 506824380E9C80B9BC6DCE72 /* Assets.xcassets */; };
@@ -124,6 +126,7 @@
 		8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePlanGauge.swift; sourceTree = "<group>"; };
 		8CB8B6E5E9DA6164F979E88F /* GithubPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GithubPoller.swift; sourceTree = "<group>"; };
 		8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandTypes.swift; sourceTree = "<group>"; };
+		92A1B0FD91AA3521FB60668F /* voice */ = {isa = PBXFileReference; lastKnownFileType = folder; name = voice; path = Resources/voice; sourceTree = SOURCE_ROOT; };
 		9F6D7015D6A77AA59323C0E7 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		A14A61070D293AB4BBA303F7 /* NotchBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotCanvasView.swift; sourceTree = "<group>"; };
@@ -231,6 +234,7 @@
 			isa = PBXGroup;
 			children = (
 				C066E2B991AA4F56B2724263 /* sounds */,
+				92A1B0FD91AA3521FB60668F /* voice */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -319,6 +323,7 @@
 			files = (
 				FBBC4CDE82B5886A83A27D7A /* Assets.xcassets in Resources */,
 				B3EC9CF3C8BD629C3530E8F1 /* sounds in Resources */,
+				7F5E583E21B149667DB6B84F /* voice in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,6 +333,7 @@
 			files = (
 				DCAC390FF9EC65B945A15B24 /* Assets.xcassets in Resources */,
 				F06EE0A97CB77096A337AA8B /* sounds in Resources */,
+				EE5F528D02D3EAF1E9D96A3D /* voice in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

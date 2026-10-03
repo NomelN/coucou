@@ -247,7 +247,12 @@ struct SettingsView: View {
                         Text("Voice")
                             .frame(width: 56, alignment: .leading)
                         Picker("", selection: $state.voiceIdentifier) {
-                            Text("System voice").tag("")
+                            if VoiceEngine.hasMochiLines {
+                                Text("Mochi").tag("")
+                                Text("System voice").tag(VoiceEngine.systemVoiceTag)
+                            } else {
+                                Text("System voice").tag("")
+                            }
                             ForEach(voices, id: \.identifier) { voice in
                                 Text(VoiceEngine.label(for: voice)).tag(voice.identifier)
                             }
@@ -260,7 +265,7 @@ struct SettingsView: View {
                     Toggle("Chat answers", isOn: $state.voiceSpeaksChat)
                 }
                 .disabled(!state.voiceEnabled)
-                Text("Uses the Mac's own voices, nothing leaves the Mac. Escape stops it. More voices in System Settings → Accessibility → Spoken Content.")
+                Text("Mochi plays its own recorded lines; chat answers use the Mac's voice. Nothing leaves the Mac. Escape stops it. More voices in System Settings → Accessibility → Spoken Content.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }

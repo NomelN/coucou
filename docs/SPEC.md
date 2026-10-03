@@ -226,7 +226,11 @@ Pas de son pour les mises à jour silencieuses (défilé de tâches, mini-bonhom
 
 ### Voix (Coucou parle)
 
-`VoiceEngine` lit à voix haute avec `AVSpeechSynthesizer` (voix du Mac, rien ne sort du Mac). Désactivé par défaut. Les phrases suivent la langue de la voix : français pour une voix `fr-*`, anglais sinon. Le nom annoncé est celui du dossier de l'événement (avec alias), pas celui de la pastille, partagée entre sessions.
+`VoiceEngine` parle de deux façons, rien ne sort du Mac. Désactivé par défaut.
+- **Voix Mochi** (choix par défaut, identifiant vide) : répliques enregistrées dans `Resources/voice/` (créées avec ElevenLabs, converties en WAV 48 kHz stéréo, silences coupés, volume égalisé). Une réplique = `nom.wav` ou des variantes `nom-1.wav`, `nom-2.wav`… tirées au hasard, jamais deux fois la même d'affilée. Elle démarre 0,45 s après le son de l'événement. Mochi hoche la tête à chaque remontée du volume (mesure du lecteur, 30 Hz, seulement pendant la réplique). Événement sans réplique → voix du Mac. Les WAV restent hors de git (`.gitignore`, voir `Resources/voice/README.md`) : sans eux, « Mochi » disparaît du choix et la voix du Mac prend le relais.
+- **Voix du Mac** (`AVSpeechSynthesizer`) : « System voice » ou une voix choisie. Lit aussi les réponses du chat en mode Mochi. Les phrases suivent la langue de la voix : français pour une voix `fr-*` (et pour Mochi), anglais sinon.
+
+Répliques de Mochi : `fini` (fin), `erreur` (échec), `feu-vert` (permission), `question` (question, sans lire la question), `limite` (limite d'usage). Le nom annoncé est celui du dossier de l'événement (avec alias), pas celui de la pastille, partagée entre sessions.
 
 | Événement | Phrase (voix française) | Réglage |
 |---|---|---|
@@ -234,6 +238,7 @@ Pas de son pour les mises à jour silencieuses (défilé de tâches, mini-bonhom
 | échec (`StopFailure`) | « projet a rencontré une erreur. » | idem |
 | permission | « projet attend ton feu vert. » | Permissions and questions |
 | question (`AskUserQuestion`) | « projet te pose une question. » + texte de la 1re question | idem |
+| limite d'usage (`Notification` rate limit) | « projet a atteint sa limite d'usage. » | When an agent finishes or fails |
 | réponse du chat | la réponse sans Markdown (code, liens, emphase retirés), coupée à la fin de phrase avant 600 caractères | Chat answers (off par défaut) |
 
 - Une alerte coupe ce qui est en cours ; une réponse du chat ne coupe jamais une alerte.
@@ -255,7 +260,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Integrations** : clé ou token (Trousseau) pour chaque service (n8n, Stripe, GitHub, Vercel, Resend, Notion, Cal.com).
 - **Sound** : son on/off, volume.
-- **Voice** : Coucou speaks on/off, choix de la voix (langues de l'utilisateur + anglais, sans voix fantaisie, meilleure qualité d'abord ; « System voice » = voix système de la langue), bouton Test, et ce qui est lu : fin/échec d'agent, permissions et questions, réponses du chat. Voir §9.
+- **Voice** : Coucou speaks on/off, choix de la voix (« Mochi » = répliques enregistrées, « System voice » = voix système de la langue, puis les voix du Mac des langues de l'utilisateur + anglais, sans voix fantaisie, meilleure qualité d'abord), bouton Test, et ce qui est lu : fin/échec d'agent, permissions et questions, réponses du chat. Voir §9.
 - **Behavior** : fermeture après N s d'inactivité ; masquage après N min sans mouvement.
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.
