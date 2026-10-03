@@ -497,7 +497,8 @@ final class HookServer: @unchecked Sendable {
                 setPillBadge(id: agentId, badge: .finished)
                 state.focusForNotice(agentId)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.2) {
+            // Same length as the finished card, so the task stays finished while it shows
+            DispatchQueue.main.asyncAfter(deadline: .now() + IslandWindowController.finishedCardDuration) {
                 if isExternalAgent {
                     AppState.shared.removeTask(id: agentId)
                 } else {

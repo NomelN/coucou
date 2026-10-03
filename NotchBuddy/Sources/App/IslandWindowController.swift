@@ -153,6 +153,12 @@ final class IslandWindowController: NSWindowController {
                 if newView == .prompt {
                     self.islandPanel.makeKey()
                 }
+                // The finished card folds by itself; leaving it stops the countdown
+                if newView == .finished {
+                    self.scheduleFinishedCollapse()
+                } else {
+                    self.finishedPinTimer?.cancel()
+                }
             }
     }
 
@@ -366,7 +372,8 @@ final class IslandWindowController: NSWindowController {
         collapseWhenMouseLeaves = false
         noticeCollapseWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.state.mode == .expanded, self.state.view == .overview else { return }
+            guard let self, self.state.mode == .expanded,
+                  self.state.view == .overview || self.state.view == .finished else { return }
             self.collapse()
         }
         noticeCollapseWork = work
@@ -431,6 +438,13 @@ final class IslandWindowController: NSWindowController {
         NotificationCenter.default.addObserver(forName: .noticeCollapse, object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
             if self.wasInIsland { self.collapseWhenMouseLeaves = true } else { self.collapse() }
+        }
+
+        // A diff opened from the finished card: keep the island open while it is read
+        NotificationCenter.default.addObserver(forName: .keepFinishedCard, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.finishedPinTimer?.cancel()
+            self.collapseWhenMouseLeaves = false
         }
 
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s
@@ -752,19 +766,20 @@ final class IslandWindowController: NSWindowController {
         state.lastActivity = .now
     }
 
-    // MARK: - Finished task pin (5.2s)
+    // MARK: - Finished card (folds by itself after 8 s)
 
-    func pinForFinished(taskId: String) {
-        state.isPinned = true
+    static let finishedCardDuration: TimeInterval = 8
+
+    /// The finished card has no buttons: it folds after 8 s (time for Coucou to say it),
+    /// or once the mouse leaves the island if it is over it then.
+    func scheduleFinishedCollapse() {
         finishedPinTimer?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.state.removeTask(id: taskId)
-            self.state.isPinned = false
-            self.collapse()
+            guard let self, self.state.mode == .expanded, self.state.view == .finished else { return }
+            if self.wasInIsland { self.collapseWhenMouseLeaves = true } else { self.collapse() }
         }
         finishedPinTimer = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.2, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.finishedCardDuration, execute: item)
     }
 
     // MARK: - Dizzy recovery (triggered by BotEngine.slap via .botDizzy)
@@ -903,6 +918,7 @@ extension Notification.Name {
     static let botGulp          = Notification.Name("notchBuddy.botGulp")
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
     static let botSpeakWord     = Notification.Name("notchBuddy.botSpeakWord")
+    static let keepFinishedCard = Notification.Name("notchBuddy.keepFinishedCard")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")

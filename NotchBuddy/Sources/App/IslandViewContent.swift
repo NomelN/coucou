@@ -563,23 +563,6 @@ struct FinishedView: View {
                         return "Session finished"
                     }())
                         .font(.system(size: 15, weight: .semibold))
-                    HStack(spacing: 8) {
-                        #if !APPSTORE
-                        PrimaryButton("Open terminal") {
-                            let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
-                            let activated = terminalBundleIds.compactMap { id in
-                                NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
-                            }.first.map { $0.activate(options: .activateIgnoringOtherApps) }
-                            if activated == nil {
-                                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
-                            }
-                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
-                        }
-                        #endif
-                        SecondaryButton("OK") {
-                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
-                        }
-                    }
                     // Touched files (up to 4)
                     let files = state.touchedFiles(for: state.focusTask?.id ?? "")
                     if !files.isEmpty {
@@ -588,6 +571,7 @@ struct FinishedView: View {
                             ForEach(shown.indices, id: \.self) { i in
                                 let f = shown[i]
                                 Button(action: {
+                                    NotificationCenter.default.post(name: .keepFinishedCard, object: nil)
                                     withAnimation(.easeIn(duration: 0.16)) {
                                         if let taskId = state.focusTask?.id,
                                            let diffs = state.sessionDiffs[taskId],
