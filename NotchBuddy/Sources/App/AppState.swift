@@ -278,6 +278,11 @@ final class AppState: ObservableObject {
             if let data = try? JSONEncoder().encode(Array(activeIntegrations)) {
                 UserDefaults.standard.set(data, forKey: "activeIntegrations")
             }
+            // Clear stale GitHub data when the integration is disabled
+            if !activeIntegrations.contains("integration_github") && oldValue.contains("integration_github") {
+                githubPulse = nil
+                githubActivity = nil
+            }
         }
     }
 
@@ -291,8 +296,10 @@ final class AppState: ObservableObject {
     @Published var resendEmails: [ResendEmail] = []
     @Published var resendTotal: Int? = nil
 
-    // GitHub stats (populated by GithubPoller)
+    // GitHub stats + pulse + activity (populated by GithubPoller)
     @Published var githubStats: GitHubStats? = nil
+    @Published var githubPulse: GitHubPulse? = nil
+    @Published var githubActivity: GitHubActivity? = nil
 
     // Stripe (populated by StripePoller)
     @Published var stripePayments: [StripePayment] = []
@@ -354,19 +361,6 @@ final class AppState: ObservableObject {
         sessionDiffTimers.removeValue(forKey: pillId)
         sessionDiffs.removeValue(forKey: pillId)
         // nextDiffId intentionally NOT reset — ids remain unique across sessions
-    }
-
-    /// Unique touched files for a pill, in first-touch order, with summed totals.
-    func touchedFiles(for pillId: String) -> [(path: String, added: Int, removed: Int)] {
-        guard let diffs = sessionDiffs[pillId] else { return [] }
-        var seen: [String: (added: Int, removed: Int)] = [:]
-        var order: [String] = []
-        for d in diffs {
-            if seen[d.path] == nil { order.append(d.path) }
-            let p = seen[d.path] ?? (0, 0)
-            seen[d.path] = (p.added + d.added, p.removed + d.removed)
-        }
-        return order.map { path in let t = seen[path]!; return (path, t.added, t.removed) }
     }
 
     private func resetSessionDiffTimer(for pillId: String) {
@@ -618,6 +612,33 @@ final class AppState: ObservableObject {
         if openedIsland, mode == .expanded, view == .overview, pendingApproval == nil, pendingQuestion == nil {
             NotificationCenter.default.post(name: .noticeCollapse, object: nil)
         }
+    }
+
+    func setPillBadge(_ badge: PillBadge, for id: String) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].pillBadge = badge
+    }
+
+    /// Called on main thread after each GitHub pulse poll. Fires badge + sound based on events.
+    func handleGitHubEvents(_ events: [GitHubEvent]) {
+        guard !events.isEmpty else { return }
+        // Priority: error > question (reviewRequested) > finish (ciPassed)
+        var level = 0          // 0 = none, 1 = finish, 2 = question, 3 = error
+        var badge: PillBadge?
+        var sound: String?
+        for event in events {
+            switch event {
+            case .ciFailed, .mainFailed:
+                if level < 3 { level = 3; badge = .error;    sound = "error"    }
+            case .reviewRequested:
+                if level < 2 { level = 2; badge = .finished; sound = "question" }
+            case .ciPassed:
+                if level < 1 { level = 1; badge = .finished; sound = "finish"   }
+            }
+        }
+        // Only set badge when the GitHub pill is not currently in focus
+        if let b = badge, focusId != "integration_github" { setPillBadge(b, for: "integration_github") }
+        if let s = sound { SoundEngine.shared.play(s) }
     }
 
     func syncMode() {

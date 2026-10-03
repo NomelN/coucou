@@ -440,13 +440,6 @@ final class IslandWindowController: NSWindowController {
             if self.wasInIsland { self.collapseWhenMouseLeaves = true } else { self.collapse() }
         }
 
-        // A diff opened from the finished card: keep the island open while it is read
-        NotificationCenter.default.addObserver(forName: .keepFinishedCard, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            self.finishedPinTimer?.cancel()
-            self.collapseWhenMouseLeaves = false
-        }
-
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s
         NotificationCenter.default.addObserver(forName: .botDizzy, object: nil, queue: .main) { [weak self] _ in
             self?.handleDizzy()
@@ -918,7 +911,6 @@ extension Notification.Name {
     static let botGulp          = Notification.Name("notchBuddy.botGulp")
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
     static let botSpeakWord     = Notification.Name("notchBuddy.botSpeakWord")
-    static let keepFinishedCard = Notification.Name("notchBuddy.keepFinishedCard")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
