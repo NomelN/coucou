@@ -1300,7 +1300,7 @@ struct IntegrationCardView: View {
     private var mailHasData: Bool {
         #if !APPSTORE
         task.id == "integration_mail" && appState.mailRunning
-            && !appState.mailAutomationDenied && !appState.mailMessages.isEmpty
+            && !appState.mailAutomationDenied && !appState.mailInboxes.isEmpty
         #else
         false
         #endif
@@ -1345,7 +1345,8 @@ struct IntegrationCardView: View {
         if task.id == "integration_mail" {
             if appState.mailAutomationDenied { return "Automation not allowed" }
             if !appState.mailRunning { return "Mail not open" }
-            return appState.mailUnread == 0 ? "No unread mail" : "\(appState.mailUnread) unread"
+            let unread = appState.mailInboxes.reduce(0) { $0 + $1.unread }
+            return unread == 0 ? "No unread mail" : "\(unread) unread"
         }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return "Coming soon" }
@@ -1924,6 +1925,21 @@ struct MailCardView: View {
 
     private let accent = Color(hex: "#3B8BEB")
 
+    private var inbox: MailInbox? { appState.shownMailInbox }
+    private var accountIndex: Int {
+        appState.mailInboxes.firstIndex { $0.account == inbox?.account } ?? 0
+    }
+
+    /// ‹ › between the watched accounts (only shown when two are picked in Settings).
+    private func showAccount(by delta: Int) {
+        let target = accountIndex + delta
+        guard appState.mailInboxes.indices.contains(target) else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            appState.mailShownAccount = appState.mailInboxes[target].account
+        }
+        SoundEngine.shared.play("tick")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -1934,14 +1950,26 @@ struct MailCardView: View {
                 Text("Mail")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Inbox")
+                Text(inbox?.account.isEmpty == false ? inbox!.account : "Inbox")
                     .font(.system(size: 11))
                     .foregroundColor(Color(hex: "#8E939C"))
-                if appState.mailUnread > 0 {
-                    Text("\(appState.mailUnread) unread")
+                    .lineLimit(1).truncationMode(.tail)
+                if let unread = inbox?.unread, unread > 0 {
+                    Text("\(unread) unread")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                         .monospacedDigit()
+                        .lineLimit(1)
+                }
+                if appState.mailInboxes.count > 1 {
+                    Spacer(minLength: 0)
+                    HStack(spacing: 0) {
+                        PageArrow(systemName: "chevron.left", enabled: accountIndex > 0,
+                                  badge: nil, height: 16) { showAccount(by: -1) }
+                        PageArrow(systemName: "chevron.right",
+                                  enabled: accountIndex < appState.mailInboxes.count - 1,
+                                  badge: nil, height: 16) { showAccount(by: 1) }
+                    }
                 }
             }
             .padding(.top, 6)
@@ -1950,7 +1978,7 @@ struct MailCardView: View {
 
             // Message rows — first is highlighted, rest plain (same structure as the Resend card)
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(Array(appState.mailMessages.enumerated()), id: \.element.id) { idx, message in
+                ForEach(Array((inbox?.messages ?? []).enumerated()), id: \.element.id) { idx, message in
                     Button { MailPoller.open(message) } label: {
                         HStack(spacing: 5) {
                             Circle()
@@ -2844,6 +2872,7 @@ private struct PageArrow: View {
     let systemName: String
     let enabled: Bool
     let badge: PillBadge?
+    var height: CGFloat = 28
     let action: () -> Void
     @State private var isHovered = false
 
@@ -2853,7 +2882,7 @@ private struct PageArrow: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(!enabled ? Color(hex: "#34373D")
                                  : isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#6B7079"))
-                .frame(width: 20, height: 28)
+                .frame(width: 20, height: height)
                 .contentShape(Rectangle())
                 .overlay(alignment: .topTrailing) {
                     if let badge {

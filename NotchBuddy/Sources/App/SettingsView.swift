@@ -71,6 +71,8 @@ struct SettingsView: View {
 
     // Vercel project filter
     @State private var vercelProjects: [String] = []
+    @State private var mailAccounts: [String] = []
+    @State private var loadingMail: Bool = false
     @State private var loadingVercel: Bool = false
 
     // n8n workflow filter
@@ -662,6 +664,20 @@ struct SettingsView: View {
                         .textFieldStyle(.roundedBorder)
                 }
 
+                #if !APPSTORE
+                // Mail (macOS app — no key, read through AppleScript)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: "#3B8BEB")).frame(width: 8, height: 8)
+                        Text("Mail").font(.system(size: 12, weight: .semibold))
+                    }
+                    MailAccountsRow(accounts: mailAccounts,
+                                    selection: $state.mailAccountFilter,
+                                    loading: loadingMail,
+                                    onLoad: loadMailAccounts)
+                }
+                #endif
+
                 Button("Save integrations") { saveIntegrations() }
                     .buttonStyle(.borderedProminent)
             }
@@ -874,6 +890,22 @@ struct SettingsView: View {
 
     // MARK: - Vercel project list
 
+    #if !APPSTORE
+    private func loadMailAccounts() {
+        loadingMail = true
+        Task { @MainActor in
+            let names = await MailPoller.shared.loadAccounts()
+            loadingMail = false
+            if let names {
+                mailAccounts = names
+                if names.isEmpty { statusMessage = "❌ No enabled account found in Mail." }
+            } else {
+                statusMessage = "❌ Open Mail first, and allow Coucou to control it."
+            }
+        }
+    }
+    #endif
+
     private func loadVercelProjects() {
         guard let token = KeychainStore.shared.get("vercel-token") else {
             statusMessage = "❌ Save Vercel token first."
@@ -1082,6 +1114,69 @@ struct IntegrationFilterRow: View {
         }
     }
 }
+
+// MARK: - Mail accounts picker (GitHub build only)
+
+#if !APPSTORE
+/// Up to `AppState.maxMailAccounts` Mail accounts to watch. None picked = the unified inbox.
+struct MailAccountsRow: View {
+    let accounts: [String]
+    @Binding var selection: [String]
+    let loading: Bool
+    let onLoad: () -> Void
+
+    /// Picked accounts stay listed even before the list is loaded from Mail.
+    private var items: [String] {
+        accounts + selection.filter { !accounts.contains($0) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text("Accounts")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                Spacer()
+                if loading {
+                    ProgressView().scaleEffect(0.6)
+                } else {
+                    Button(accounts.isEmpty ? "Load list" : "Refresh") { onLoad() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                }
+                if !selection.isEmpty {
+                    Button("Clear") { selection = [] }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .foregroundColor(.secondary)
+                }
+            }
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(items, id: \.self) { item in
+                        let isOn = selection.contains(item)
+                        Toggle(item, isOn: Binding(
+                            get: { isOn },
+                            set: { on in
+                                if on { selection.append(item) } else { selection.removeAll { $0 == item } }
+                            }
+                        ))
+                        .font(.system(size: 11))
+                        .toggleStyle(.checkbox)
+                        .disabled(!isOn && selection.count >= AppState.maxMailAccounts)
+                    }
+                }
+                .padding(.leading, 4)
+            }
+            Text(selection.isEmpty
+                 ? "None picked: all inboxes together. Pick up to \(AppState.maxMailAccounts) to switch between them with ‹ ›."
+                 : "Watching \(selection.count) of \(AppState.maxMailAccounts) accounts")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+#endif
 
 // MARK: - Shortcut recorder button
 

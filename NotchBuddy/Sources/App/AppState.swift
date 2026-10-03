@@ -258,8 +258,24 @@ final class AppState: ObservableObject {
     // macOS Mail (read by MailPoller through AppleScript)
     @Published var mailRunning: Bool = false
     @Published var mailAutomationDenied: Bool = false
-    @Published var mailUnread: Int = 0
-    @Published var mailMessages: [MailMessage] = []
+    @Published var mailInboxes: [MailInbox] = []
+    /// Accounts the Mail pill watches, at most `maxMailAccounts`. Empty = the unified inbox.
+    @Published var mailAccountFilter: [String] = [] {
+        didSet {
+            UserDefaults.standard.set(mailAccountFilter, forKey: "mailAccountFilter")
+            if let shown = mailShownAccount, !mailAccountFilter.contains(shown) { mailShownAccount = nil }
+            MailPoller.shared.poll()
+        }
+    }
+    /// Account shown in the Mail card (‹ › or the last account that got new mail). nil = the first one.
+    @Published var mailShownAccount: String? = nil {
+        didSet { UserDefaults.standard.set(mailShownAccount, forKey: "mailShownAccount") }
+    }
+    static let maxMailAccounts = 2
+
+    var shownMailInbox: MailInbox? {
+        mailInboxes.first { $0.account == mailShownAccount } ?? mailInboxes.first
+    }
     #endif
 
     // MARK: - Init (loads persisted settings)
@@ -284,6 +300,10 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
         if let v = ud.object(forKey: "hotkeyCode")    as? Int   { hotkeyCode = UInt16(v) }
+        #if !APPSTORE
+        if let a = ud.stringArray(forKey: "mailAccountFilter") { mailAccountFilter = Array(a.prefix(Self.maxMailAccounts)) }
+        mailShownAccount = ud.string(forKey: "mailShownAccount")
+        #endif
         if let d = ud.data(forKey: "vercelProjectFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
         if let d = ud.data(forKey: "n8nWorkflowFilter"),
