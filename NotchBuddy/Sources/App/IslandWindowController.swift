@@ -12,6 +12,9 @@ final class IslandWindowController: NSWindowController {
     let fsm = IslandStateMachine()
 
     private var wasInIsland = false
+    /// A notification's island is due to fold, but the mouse was over it: fold once it leaves.
+    private var collapseWhenMouseLeaves = false
+    private var noticeCollapseWork: DispatchWorkItem?
     private var frameTimer: Timer?
     private var keyMonitor: Any?
     private var viewSubscription: AnyCancellable?
@@ -251,6 +254,8 @@ final class IslandWindowController: NSWindowController {
 
         // Feed FSM hover enter/leave
         if inIsland && !wasInIsland {
+            noticeCollapseWork?.cancel()  // back over the island: keep it open
+            noticeCollapseWork = nil
             guard !inAttachDrag else { wasInIsland = inIsland; return }
             // If in coucou: tell greeting to stay open (tc → infinity)
             if fsm.state == .coucou {
@@ -260,6 +265,7 @@ final class IslandWindowController: NSWindowController {
         }
         if !inIsland && wasInIsland {
             fsm.mouseLeft()
+            if collapseWhenMouseLeaves { scheduleNoticeCollapse() }
         }
         wasInIsland = inIsland
 
@@ -355,7 +361,22 @@ final class IslandWindowController: NSWindowController {
         state.lastActivity = .now
     }
 
+    /// Fold 1.5 s after the mouse left, unless it comes back or the user opened another view.
+    private func scheduleNoticeCollapse() {
+        collapseWhenMouseLeaves = false
+        noticeCollapseWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.state.mode == .expanded, self.state.view == .overview else { return }
+            self.collapse()
+        }
+        noticeCollapseWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
     func collapse() {
+        collapseWhenMouseLeaves = false
+        noticeCollapseWork?.cancel()
+        noticeCollapseWork = nil
         guard fsm.isHeldOpen?() != true else { return }
         state.isPinned = false
         finishedPinTimer?.cancel()
@@ -403,6 +424,12 @@ final class IslandWindowController: NSWindowController {
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()
+        }
+
+        // A notification's temporary focus ended: fold now, or once the mouse leaves the island
+        NotificationCenter.default.addObserver(forName: .noticeCollapse, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            if self.wasInIsland { self.collapseWhenMouseLeaves = true } else { self.collapse() }
         }
 
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s
@@ -882,6 +909,7 @@ extension Notification.Name {
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")
     static let greetingHover    = Notification.Name("notchBuddy.greetingHover")
+    static let noticeCollapse   = Notification.Name("notchBuddy.noticeCollapse")
     static let greetingInterrupt = Notification.Name("notchBuddy.greetingInterrupt")
 }
 

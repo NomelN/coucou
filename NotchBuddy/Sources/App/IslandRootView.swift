@@ -502,6 +502,18 @@ struct IslandHeader: View {
                         .foregroundColor(Color(hex: "#8E939C"))
                 }
                 .buttonStyle(.plain)
+
+                // Fold the island, like Escape: not while a card is pinned (approval, finished task)
+                Button(action: {
+                    NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                }) {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(hex: state.isPinned ? "#3A3D43" : "#8E939C"))
+                }
+                .buttonStyle(.plain)
+                .disabled(state.isPinned)
+                .help("Fold the island")
             }
             .padding(.trailing, 16)
         }

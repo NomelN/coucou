@@ -445,10 +445,10 @@ final class AppState: ObservableObject {
         if let original, tasks.contains(where: { $0.id == original }) {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { focusId = original }
         }
-        // Fold the island back if the notification opened it and the user didn't go elsewhere
-        // (collapse() itself keeps it open while the mouse is over it).
+        // Fold the island back if the notification opened it and the user didn't go elsewhere.
+        // The window controller waits for the mouse to leave the island first.
         if openedIsland, mode == .expanded, view == .overview, pendingApproval == nil {
-            NotificationCenter.default.post(name: .islandCollapse, object: nil)
+            NotificationCenter.default.post(name: .noticeCollapse, object: nil)
         }
     }
 
