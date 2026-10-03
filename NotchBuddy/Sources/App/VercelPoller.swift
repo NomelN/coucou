@@ -8,6 +8,10 @@ final class VercelPoller: @unchecked Sendable {
     static let shared = VercelPoller()
     private var timer: DispatchSourceTimer?
     private var lastDeploymentId: String = ""
+    /// The first read only sets the baseline: an old deployment never notifies at launch.
+    /// A project filter change sets a new one, so it doesn't notify either.
+    private var baselineDone = false
+    private var baselineFilter: Set<String> = []
 
     private init() {}
 
@@ -43,8 +47,8 @@ final class VercelPoller: @unchecked Sendable {
             let parsed = rawList
                 .compactMap { self.parseDeployment($0) }
                 .filter { terminal.contains($0.state) }
-            guard !parsed.isEmpty else { return }
 
+            // Also when empty, so the baseline is set even before the first deployment
             DispatchQueue.main.async { self.handleDeployments(parsed) }
         }.resume()
     }
@@ -73,11 +77,17 @@ final class VercelPoller: @unchecked Sendable {
     @MainActor
     private func handleDeployments(_ deployments: [VercelDeployment]) {
         let appState = AppState.shared
-        appState.vercelDeployments = deployments
+        if !deployments.isEmpty { appState.vercelDeployments = deployments }
 
         // Apply project filter (empty = all projects)
         let filter = appState.vercelProjectFilter
         let filtered = filter.isEmpty ? deployments : deployments.filter { filter.contains($0.projectName) }
+        if !baselineDone || filter != baselineFilter {
+            baselineDone = true
+            baselineFilter = filter
+            lastDeploymentId = filtered.first?.id ?? ""
+            return
+        }
         guard let latest = filtered.first else { return }
         guard latest.id != lastDeploymentId else { return }
         lastDeploymentId = latest.id

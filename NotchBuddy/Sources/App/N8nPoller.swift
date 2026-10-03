@@ -9,6 +9,8 @@ final class N8nPoller: @unchecked Sendable {
     static let shared = N8nPoller()
     private var timer: DispatchSourceTimer?
     private var lastExecutionId: String = ""
+    /// The first read only sets the baseline: an old execution never notifies at launch.
+    private var baselineDone = false
 
     private init() {}
 
@@ -77,7 +79,11 @@ final class N8nPoller: @unchecked Sendable {
                 return
             }
 
-            guard let first = items.first else { self.n8nLog("No executions found"); return }
+            guard let first = items.first else {
+                self.baselineDone = true
+                self.n8nLog("No executions found")
+                return
+            }
 
             let id: String
             if let s = first["id"] as? String      { id = s }
@@ -93,6 +99,13 @@ final class N8nPoller: @unchecked Sendable {
             // (published workflows often have finished=false on error)
             let status = first["status"] as? String ?? ""
             let isTerminal = ["success", "error", "crashed", "canceled", "failed"].contains(status)
+            guard self.baselineDone else {
+                // A finished execution is old news; a running one notifies when it ends
+                self.baselineDone = true
+                if isTerminal { self.lastExecutionId = id }
+                self.n8nLog("Baseline id=\(id) status=\(status.isEmpty ? "?" : status)")
+                return
+            }
             guard isTerminal else {
                 self.n8nLog("id=\(id) status=\(status.isEmpty ? "?" : status) — not terminal")
                 return
