@@ -99,7 +99,7 @@ Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source d
 | `workspace` | Where you code | VS Code, Cursor, Antigravity *(GitHub only)*, Codex *(GitHub only)*, Claude *(app de bureau, GitHub only)* | Integration | Claude Code / Cursor / Codex / Claude / Agent |
 | `agent` | Agents | Gemini CLI *(GitHub only)* | Agent | Agent |
 | `ai` | AI for the chat | Anthropic, Google AI, OpenAI, DeepSeek | Chat | — |
-| `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Apple Music *(GitHub only)*, ChatGPT *(raccourci, GitHub only)* | Integration (ChatGPT : App) | — |
+| `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Apple Music *(GitHub only)*, Mail *(GitHub only)*, ChatGPT *(raccourci, GitHub only)* | Integration (Mail, ChatGPT : App) | — |
 
 Couleurs : Cursor `#C0C4CC`, Codex `#2DD4BF`, Gemini CLI `#8AB4F8`, Antigravity `#E879F9`, pastilles IA = `ChatProvider.accentHex`.
 
@@ -113,6 +113,7 @@ Règles :
 - `sortTasksByCatalog` : pastilles du catalogue dans l'ordre du catalogue ; pastilles hors catalogue juste après `integration_claude`.
 - Pastilles `githubOnly` : exclues des builds App Store (`#if APPSTORE`).
 - Claude (app de bureau, `agent_claude_desktop`) : ses sessions Claude Code passent par les mêmes hooks que la CLI ; routage sur `bundle_id == com.anthropic.claudefordesktop`. Les demandes de permission ne s'affichent pas dans l'encoche (réponse « ask », l'app de bureau garde sa propre fenêtre). Configurée = hooks Claude Code installés.
+- Mail (`integration_mail`) : `MailPoller` lit la boîte de réception unifiée de Mail par AppleScript toutes les 45 s, seulement si la pastille est active et Mail déjà ouvert (ne lance jamais Mail). Lit le nombre de non lus et les 10 derniers messages (Message-ID, expéditeur, objet, âge en secondes, lu ou non) ; la carte montre les 3 plus récents, un clic ouvre le message (`message://<id>`). Premier relevé = référence, sans notification ; ensuite, un nouveau message non lu → état `.finished`, badge, focus temporaire, son `pop` (une seule notification par relevé). Statut : « x unread » / « No unread mail » / « Mail not open » / « Automation not allowed » (erreur -1743, bouton « Open Settings… »). Rien ne quitte le Mac.
 - ChatGPT (`integration_chatgpt`) : raccourci seulement (l'app n'envoie aucun événement). Un clic ouvre l'app (`com.openai.chat`, sinon `/Applications/ChatGPT.app`). Statut « Shortcut · opens the app » ou « App not installed ».
 - Hooks (Gemini CLI, Antigravity, Codex) : `isConfigured` = `HookServer.geminiHooksInstalled()` / `agyHooksInstalled()` / `codexHooksInstalled()` sous `#if !APPSTORE`. La section Codex Hooks dans Settings installe les hooks dans `~/.codex/hooks.json` avec le même flux backup + preview que Gemini CLI. Après l'installation, la carte affiche : « run /hooks in Codex or open Hooks in the app's settings to trust them ». Approbations Codex : carte avec Allow et Deny seulement (pas Always) ; updatedPermissions jamais envoyé ; notes « Handled in Codex. » / « Still waiting in Codex. ».
 - Pastilles IA : `isConfigured` = clé API dans le Keychain. Bouton « Chat with… » → change le fournisseur et ouvre la vue `.prompt`.

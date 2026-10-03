@@ -103,6 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         StripePoller.shared.start()
         CalcomPoller.shared.start()
         NotionPoller.shared.start()
+        #if !APPSTORE
+        MailPoller.shared.start()
+        #endif
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
         #if !APPSTORE

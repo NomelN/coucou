@@ -88,6 +88,8 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  source: .n8n),
         .init(id: "integration_music",   name: "Apple Music", color: "#FA2D48",
               category: .service,   subtitle: "Integration",  source: .n8n, githubOnly: true),
+        .init(id: "integration_mail",    name: "Mail",        color: "#3B8BEB",
+              category: .service,   subtitle: "App",          source: .n8n, githubOnly: true),
         .init(id: "integration_chatgpt", name: "ChatGPT",     color: "#19C37D",
               category: .service,   subtitle: "App",          source: .n8n, githubOnly: true),
     ]

@@ -254,6 +254,12 @@ final class AppState: ObservableObject {
     #if !APPSTORE
     @Published var musicPlaying: Bool = false
     @Published var musicAutomationDenied: Bool = false
+
+    // macOS Mail (read by MailPoller through AppleScript)
+    @Published var mailRunning: Bool = false
+    @Published var mailAutomationDenied: Bool = false
+    @Published var mailUnread: Int = 0
+    @Published var mailMessages: [MailMessage] = []
     #endif
 
     // MARK: - Init (loads persisted settings)
@@ -369,17 +375,21 @@ final class AppState: ObservableObject {
     /// focus for `noticeFocusDuration`, then give the focus back to the pill that had it.
     /// Several notifications in a row return to the original pill, not to an intermediate one.
     /// The pill keeps its badge, so once it is back in the grid you still see it was notified.
-    /// If the island is not open, it opens on the overview so the notification is seen.
+    /// If the island is not open, it opens on the overview so the notification is seen —
+    /// also when the pill already has the focus (then only the island opens and folds back).
     func focusForNotice(_ id: String) {
         guard pendingApproval == nil else { return }  // the approval card owns the focus
         guard tasks.contains(where: { $0.id == id }) else { return }
-        if focusId == id && noticeFocusId != id { return }  // already focused by the user
+        let focusedByUser = focusId == id && noticeFocusId != id
+        if focusedByUser && mode == .expanded { return }  // already in front of the user
         if noticeFocusId == nil {
             focusBeforeNotice = focusId
             noticeOpenedIsland = false
         }
         noticeFocusId = id
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { focusId = id }
+        if focusId != id {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { focusId = id }
+        }
         if mode != .expanded {
             noticeOpenedIsland = true
             NotificationCenter.default.post(name: .hookExpand, object: IslandView.overview)
@@ -478,6 +488,9 @@ final class AppState: ObservableObject {
         } else {
             guard activeIntegrations.count < Self.maxActivePills else { return }
             activeIntegrations.insert(id)
+            #if !APPSTORE
+            if id == "integration_mail" { MailPoller.shared.poll() }  // fill the card right away
+            #endif
             if let def = PillCatalog.available.first(where: { $0.id == id }),
                !tasks.contains(where: { $0.id == id }) {
                 let task = AgentTask(id: def.id, name: def.name, color: def.color,

@@ -166,6 +166,10 @@ struct OverviewView: View {
                 NSWorkspace.shared.openApplication(at: url, configuration: .init(), completionHandler: nil)
             }
             #endif
+        case "integration_mail":
+            #if !APPSTORE
+            MailPoller.openMail()
+            #endif
         case "integration_chatgpt":
             #if !APPSTORE
             if let url = PillCatalog.chatGPTAppURL {
@@ -1200,6 +1204,12 @@ struct IntegrationCardView: View {
             #endif
         case "agent_cursor", "agent_codex":
             return false  // coming soon
+        case "integration_mail":
+            #if !APPSTORE
+            return true  // Mail is always installed on macOS
+            #else
+            return false
+            #endif
         case "integration_chatgpt":
             #if !APPSTORE
             return PillCatalog.chatGPTAppURL != nil
@@ -1287,6 +1297,15 @@ struct IntegrationCardView: View {
     }
 
     // Apple Music: show card when a track is loaded (playing or paused) or automation is denied
+    private var mailHasData: Bool {
+        #if !APPSTORE
+        task.id == "integration_mail" && appState.mailRunning
+            && !appState.mailAutomationDenied && !appState.mailMessages.isEmpty
+        #else
+        false
+        #endif
+    }
+
     private var musicIsActive: Bool {
         #if !APPSTORE
         guard task.id == "integration_music" else { return false }
@@ -1303,6 +1322,10 @@ struct IntegrationCardView: View {
             if appState.musicAutomationDenied { return Color(hex: "#F4505E") }
             return appState.musicPlaying ? Color(hex: "#FA2D48") : Color(hex: "#22C55E")
         }
+        if task.id == "integration_mail" {
+            if appState.mailAutomationDenied { return Color(hex: "#F4505E") }
+            return appState.mailRunning ? Color(hex: "#22C55E") : Color(hex: "#6B7079")
+        }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return Color(hex: "#6B7079") }
         let svcErr = task.id == "integration_stripe" ? appState.stripeError
@@ -1318,6 +1341,11 @@ struct IntegrationCardView: View {
             if appState.musicAutomationDenied { return "Automation not allowed" }
             if appState.musicPlaying { return "Playing · \(MusicController.shared.trackTitle ?? "Unknown")" }
             return "Not playing"
+        }
+        if task.id == "integration_mail" {
+            if appState.mailAutomationDenied { return "Automation not allowed" }
+            if !appState.mailRunning { return "Mail not open" }
+            return appState.mailUnread == 0 ? "No unread mail" : "\(appState.mailUnread) unread"
         }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return "Coming soon" }
@@ -1375,6 +1403,11 @@ struct IntegrationCardView: View {
         } else if notionHasData {
             NotionCardView()
                 .transition(.opacity)
+        } else if mailHasData {
+            #if !APPSTORE
+            MailCardView()
+                .transition(.opacity)
+            #endif
         } else if musicIsActive {
             #if !APPSTORE
             MusicCardView()
@@ -1503,6 +1536,19 @@ struct IntegrationCardView: View {
                             .foregroundColor(Color(hex: task.color).opacity(0.85))
                             .buttonStyle(.plain)
                         }
+                    } else if task.id == "integration_mail" {
+                        #if !APPSTORE
+                        Button("Open Mail") { MailPoller.openMail() }
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: task.color).opacity(0.85))
+                            .buttonStyle(.plain)
+                        if appState.mailAutomationDenied {
+                            Button("Open Settings…") { MusicController.shared.openAutomationSettings() }
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "#8E939C"))
+                                .buttonStyle(.plain)
+                        }
+                        #endif
                     } else if task.id == "integration_music" {
                         #if !APPSTORE
                         Button("Open Music") { MusicController.shared.openMusic() }
@@ -1562,6 +1608,7 @@ struct IntegrationCardView: View {
                        && task.id != "agent_cursor"
                        && task.id != "agent_codex"
                        && task.id != "integration_music"
+                       && task.id != "integration_mail"
                        && task.id != "integration_chatgpt" {
                         Button("Settings…") {
                             let section: String
@@ -1867,6 +1914,81 @@ struct ResendCardView: View {
         .padding(.top, 4)
     }
 }
+
+// MARK: - Mail Card View (GitHub build only)
+
+#if !APPSTORE
+/// Latest messages of the macOS Mail inbox, same layout as the Resend card. A row opens its message.
+struct MailCardView: View {
+    @ObservedObject var appState = AppState.shared
+
+    private let accent = Color(hex: "#3B8BEB")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 7, height: 7)
+                Text("Mail")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+                Text("Inbox")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                if appState.mailUnread > 0 {
+                    Text("\(appState.mailUnread) unread")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(hex: "#C5C8CD"))
+                        .monospacedDigit()
+                }
+            }
+            .padding(.top, 6)
+            .padding(.leading, 108)
+            .padding(.trailing, 36)
+
+            // Message rows — first is highlighted, rest plain (same structure as the Resend card)
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(appState.mailMessages.enumerated()), id: \.element.id) { idx, message in
+                    Button { MailPoller.open(message) } label: {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(message.isRead ? Color(hex: "#4D5159") : accent)
+                                .frame(width: 5, height: 5)
+                            Text(message.sender)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(hex: idx == 0 ? "#C5C8CD" : "#9398A1"))
+                                .lineLimit(1).truncationMode(.tail)
+                                .layoutPriority(1)
+                            Text(message.timeAgo)
+                                .font(.system(size: 10))
+                                .foregroundColor(Color(hex: "#6B7079"))
+                            if !message.subject.isEmpty {
+                                Text(message.subject)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(Color(hex: "#4D5159"))
+                                    .lineLimit(1).truncationMode(.tail)
+                            }
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(idx == 0 ? accent.opacity(0.08) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 5)
+            .padding(.leading, 108)
+            .padding(.trailing, 12)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.top, 4)
+    }
+}
+#endif
 
 // MARK: - GitHub Stats Card View
 
