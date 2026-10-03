@@ -33,6 +33,11 @@ struct SettingsView: View {
     @State private var hookNeedsUpdate: Bool = HookServer.hooksNeedUpdate()
 
     #if !APPSTORE
+    @State private var showStatusLineDiff: Bool = false
+    @State private var pendingStatusLineJSON: String = ""
+    @State private var statusLinePendingInstall: Bool = true
+    @State private var planTogglePending: Bool = false
+
     @State private var geminiHooksInstalled: Bool = HookServer.geminiHooksInstalled()
     @State private var showGeminiDiff: Bool = false
     @State private var pendingGeminiJSON: String = ""
@@ -53,6 +58,10 @@ struct SettingsView: View {
     @State private var googleKey: String  = KeychainStore.shared.get("google-api-key") ?? ""
     @State private var openAIKey: String  = KeychainStore.shared.get("openai-api-key") ?? ""
     @State private var deepSeekKey: String = KeychainStore.shared.get("deepseek-api-key") ?? ""
+    @State private var ollamaURL:    String = AppState.shared.ollamaServerURL
+    @State private var lmstudioURL:  String = AppState.shared.lmstudioServerURL
+    @State private var connectingOllama:    Bool = false
+    @State private var connectingLMStudio:  Bool = false
 
     // Integration keys
     @State private var resendKey: String    = KeychainStore.shared.get("resend-api-key")  ?? ""
@@ -163,6 +172,9 @@ struct SettingsView: View {
             }
         }
         .onAppear {
+            #if !APPSTORE
+            state.refreshPlanRelayState()
+            #endif
             guard fetchedModels.isEmpty,
                   let key = KeychainStore.shared.get("anthropic-api-key"), !key.isEmpty else { return }
             Task {
@@ -321,7 +333,7 @@ struct SettingsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
-                        Text("Hook timeout outdated — update to fix approvals")
+                        Text("Hooks outdated — update them to answer Claude's questions from the notch")
                             .font(.system(size: 11))
                             .foregroundColor(.orange)
                     }
@@ -475,6 +487,67 @@ struct SettingsView: View {
             }
             .padding(6)
         }
+
+        GroupBox("Plan usage") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Shows your Claude plan usage (5-hour and weekly limits) in the notch header. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Show in the notch", isOn: Binding(
+                    get: { state.showPlanInNotch || planTogglePending },
+                    set: { on in
+                        if on {
+                            if state.planRelayInstalled {
+                                state.showPlanInNotch = true
+                            } else {
+                                planTogglePending = true
+                                installStatusLine()
+                            }
+                        } else {
+                            state.showPlanInNotch = false
+                            planTogglePending = false
+                        }
+                    }
+                ))
+                HStack(spacing: 10) {
+                    if state.planRelayInstalled {
+                        Text("Relay: installed")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Button("Uninstall relay") { uninstallStatusLine() }
+                            .buttonStyle(.bordered)
+                    } else {
+                        Text("Relay: not installed")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Button("Install relay") { installStatusLine() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+                if showStatusLineDiff {
+                    ScrollView {
+                        Text(pendingStatusLineJSON)
+                            .font(.system(size: 10, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 100)
+                    .background(Color(NSColor.textBackgroundColor))
+                    .cornerRadius(6)
+                    HStack {
+                        Button("Confirm & write") { confirmStatusLine() }
+                            .buttonStyle(.borderedProminent)
+                        Button("Cancel") {
+                            showStatusLineDiff = false
+                            pendingStatusLineJSON = ""
+                            planTogglePending = false
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding(6)
+        }
         #endif
     }
 
@@ -565,6 +638,83 @@ struct SettingsView: View {
                     statusMessage = "✓ DeepSeek key saved."
                 }
                 .buttonStyle(.borderedProminent)
+            }
+            .padding(.vertical, 4)
+        }
+
+        GroupBox("Local models") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Connect to a local model server. No API key needed.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+
+                // ── Ollama ──────────────────────────────────────────────────────
+                HStack(spacing: 8) {
+                    Circle().fill(Color(hex: "#FACC15")).frame(width: 8, height: 8)
+                    Text("Ollama").font(.system(size: 12, weight: .semibold))
+                    if !state.ollamaServerURL.isEmpty {
+                        Text("Connected")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(hex: "#22C55E"))
+                    }
+                }
+                if state.ollamaServerURL.isEmpty {
+                    TextField("http://127.0.0.1:11434", text: $ollamaURL)
+                        .textFieldStyle(.roundedBorder)
+                    Button(connectingOllama ? "Connecting…" : "Connect") {
+                        Task { await connectLocal(provider: .ollama) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(connectingOllama)
+                } else {
+                    Text(state.ollamaServerURL)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Button("Disconnect") {
+                        state.ollamaServerURL = ""
+                        ollamaURL = ""
+                        state.fetchedProviderModels[.ollama] = nil
+                        state.providerModelFetchError[.ollama] = nil
+                        if state.chatProvider == .ollama { state.chatProvider = .anthropic }
+                        statusMessage = "Ollama disconnected."
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Divider()
+
+                // ── LM Studio ───────────────────────────────────────────────────
+                HStack(spacing: 8) {
+                    Circle().fill(Color(hex: "#A3E635")).frame(width: 8, height: 8)
+                    Text("LM Studio").font(.system(size: 12, weight: .semibold))
+                    if !state.lmstudioServerURL.isEmpty {
+                        Text("Connected")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(hex: "#22C55E"))
+                    }
+                }
+                if state.lmstudioServerURL.isEmpty {
+                    TextField("http://127.0.0.1:1234", text: $lmstudioURL)
+                        .textFieldStyle(.roundedBorder)
+                    Button(connectingLMStudio ? "Connecting…" : "Connect") {
+                        Task { await connectLocal(provider: .lmstudio) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(connectingLMStudio)
+                } else {
+                    Text(state.lmstudioServerURL)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                    Button("Disconnect") {
+                        state.lmstudioServerURL = ""
+                        lmstudioURL = ""
+                        state.fetchedProviderModels[.lmstudio] = nil
+                        state.providerModelFetchError[.lmstudio] = nil
+                        if state.chatProvider == .lmstudio { state.chatProvider = .anthropic }
+                        statusMessage = "LM Studio disconnected."
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(.vertical, 4)
         }
@@ -753,6 +903,42 @@ struct SettingsView: View {
     }
     #endif
 
+    private func connectLocal(provider: ChatProvider) async {
+        let rawURL = provider == .ollama ? ollamaURL : lmstudioURL
+        let candidate = rawURL.isEmpty
+            ? (provider == .ollama ? "http://127.0.0.1:11434" : "http://127.0.0.1:1234")
+            : rawURL
+        let normalised = LocalChat.normaliseURL(candidate)
+        guard normalised.hasPrefix("http://") || normalised.hasPrefix("https://") else {
+            statusMessage = "Only http:// and https:// URLs are supported."
+            return
+        }
+        if provider == .ollama { connectingOllama = true } else { connectingLMStudio = true }
+        statusMessage = ""
+        let result = await LocalChat.fetchModelsResult(baseURL: normalised)
+        if provider == .ollama { connectingOllama = false } else { connectingLMStudio = false }
+        let name = provider == .ollama ? "Ollama" : "LM Studio"
+        switch result {
+        case .success(let models) where models.isEmpty:
+            statusMessage = "No models yet — download one in \(name) first."
+        case .success(let models):
+            if provider == .ollama {
+                state.ollamaServerURL = normalised
+                ollamaURL = normalised
+                state.fetchedProviderModels[.ollama] = nil
+                state.providerModelFetchError[.ollama] = nil
+            } else {
+                state.lmstudioServerURL = normalised
+                lmstudioURL = normalised
+                state.fetchedProviderModels[.lmstudio] = nil
+                state.providerModelFetchError[.lmstudio] = nil
+            }
+            statusMessage = "✓ Connected · \(models.count) model\(models.count == 1 ? "" : "s")"
+        case .failure:
+            statusMessage = "Couldn't reach \(name) at \(normalised). Is it running?"
+        }
+    }
+
     private func installHooks() {
         do {
             pendingHookJSON = try HookServer.shared.previewClaudeHooks()
@@ -862,6 +1048,50 @@ struct SettingsView: View {
                 ? "✓ Codex hooks installed — run /hooks in Codex or open Hooks in the app's settings to trust them."
                 : "✓ Codex hooks removed."
         } catch {
+            statusMessage = "❌ \(error.localizedDescription)"
+        }
+    }
+
+    private func installStatusLine() {
+        do {
+            pendingStatusLineJSON = try HookServer.shared.previewStatusLine(install: true)
+            showStatusLineDiff = true
+            statusLinePendingInstall = true
+            statusMessage = "Review the JSON below before confirming."
+        } catch {
+            statusMessage = "❌ \(error.localizedDescription)"
+        }
+    }
+
+    private func uninstallStatusLine() {
+        do {
+            pendingStatusLineJSON = try HookServer.shared.previewStatusLine(install: false)
+            showStatusLineDiff = true
+            statusLinePendingInstall = false
+            statusMessage = "Review the JSON below before confirming."
+        } catch {
+            statusMessage = "❌ \(error.localizedDescription)"
+        }
+    }
+
+    private func confirmStatusLine() {
+        do {
+            try HookServer.shared.writeStatusLine()
+            showStatusLineDiff = false
+            pendingStatusLineJSON = ""
+            state.refreshPlanRelayState()
+            if planTogglePending {
+                state.showPlanInNotch = true
+                planTogglePending = false
+            }
+            if !statusLinePendingInstall {
+                state.showPlanInNotch = false
+            }
+            statusMessage = statusLinePendingInstall
+                ? "✓ Status line installed."
+                : "✓ Status line removed."
+        } catch {
+            planTogglePending = false
             statusMessage = "❌ \(error.localizedDescription)"
         }
     }
@@ -987,10 +1217,15 @@ struct SettingsView: View {
             if def.id == "agent_codex"         && !HookServer.codexHooksInstalled()  { return "Hooks not installed" }
             #endif
             if def.category == .ai {
-                let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
-                           : def.id == "ai_google"    ? "google-api-key"
-                           : def.id == "ai_deepseek"  ? "deepseek-api-key" : "openai-api-key"
-                if KeychainStore.shared.get(keyId) == nil { return "Key not configured" }
+                if let provider = ChatProvider(pillID: def.id), provider.isLocal {
+                    let url = provider == .ollama ? state.ollamaServerURL : state.lmstudioServerURL
+                    if url.isEmpty { return "Not connected" }
+                } else {
+                    let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
+                               : def.id == "ai_google"    ? "google-api-key"
+                               : def.id == "ai_deepseek"  ? "deepseek-api-key" : "openai-api-key"
+                    if KeychainStore.shared.get(keyId) == nil { return "Key not configured" }
+                }
             }
             return nil
         }()

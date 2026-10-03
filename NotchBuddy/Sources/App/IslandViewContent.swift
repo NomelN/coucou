@@ -34,6 +34,7 @@ struct IslandViewContent: View {
 struct OverviewView: View {
     @ObservedObject var state: AppState
     @State private var showingN8nDetail = false
+    @State private var activeDiffId: Int? = nil
 
     var agent: AgentTask? { state.focusTask }
 
@@ -46,7 +47,9 @@ struct OverviewView: View {
                 // Title row + ticker stacked (or integration card)
                 if let agent = agent {
                     if agent.isIntegration {
-                        IntegrationCardView(task: agent, showingDetail: $showingN8nDetail)
+                        IntegrationCardView(task: agent, showingDetail: $showingN8nDetail, onDiffTap: { diffIdx in
+                            withAnimation(.easeIn(duration: 0.16)) { activeDiffId = diffIdx }
+                        })
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack(spacing: 6) {
@@ -82,7 +85,9 @@ struct OverviewView: View {
                             .padding(.leading, 108)
                             .padding(.trailing, 36)
 
-                            TickerView(task: agent)
+                            TickerView(task: agent, onDiffTap: { diffIdx in
+                                withAnimation(.easeIn(duration: 0.16)) { activeDiffId = diffIdx }
+                            })
                                 .frame(height: 44)
                                 .padding(.top, 6)
                                 .padding(.leading, 108)
@@ -93,8 +98,31 @@ struct OverviewView: View {
                     }
                 }
 
+                // Plan detail overlays on top of normal content (GitHub build, home view only)
+                #if !APPSTORE
+                if state.showingPlanDetail {
+                    CardBackground(wash: nil)
+                    ClaudePlanCardView(usage: state.claudePlanUsage)
+                        .transition(.opacity)
+                }
+                #endif
+
+                // Diff overlay — replaces ticker when a diff step is tapped
+                if let diffId = activeDiffId,
+                   let task = agent,
+                   let diff = state.sessionDiffs[task.id]?.first(where: { $0.id == diffId }) {
+                    CardBackground(wash: nil)
+                    DiffCardView(diff: diff, onDismiss: { activeDiffId = nil })
+                        .transition(.opacity)
+                }
+
                 // ↗ jump button — last in ZStack so it renders on top; hidden while any detail is open
-                if !showingN8nDetail {
+                #if !APPSTORE
+                let hideJumpButton = showingN8nDetail || state.showingPlanDetail || activeDiffId != nil
+                #else
+                let hideJumpButton = showingN8nDetail || activeDiffId != nil
+                #endif
+                if !hideJumpButton {
                     Button(action: { openAgentTarget(agent) }) {
                         Image(systemName: "arrow.up.right")
                             .font(.system(size: 8, weight: .medium))
@@ -116,7 +144,21 @@ struct OverviewView: View {
                 AgentPillsView(state: state)
             }
         }
-        .onChange(of: state.focusId) { _, _ in showingN8nDetail = false }
+        .onChange(of: state.focusId) { _, _ in
+            showingN8nDetail = false
+            activeDiffId = nil
+            #if !APPSTORE
+            withAnimation(.easeIn(duration: 0.16)) { state.showingPlanDetail = false }
+            #endif
+        }
+        #if !APPSTORE
+        .onChange(of: state.view) { _, v in
+            if v != .overview { state.showingPlanDetail = false; activeDiffId = nil }
+        }
+        .onChange(of: state.mode) { _, m in
+            if m != .expanded { state.showingPlanDetail = false; activeDiffId = nil }
+        }
+        #endif
     }
 
     private func openAgentTarget(_ task: AgentTask?) {
@@ -194,6 +236,10 @@ struct OverviewView: View {
             switchChatProvider(.openai)
         case "ai_deepseek":
             switchChatProvider(.deepseek)
+        case "ai_ollama":
+            switchChatProvider(.ollama)
+        case "ai_lmstudio":
+            switchChatProvider(.lmstudio)
         case "integration_music":
             #if !APPSTORE
             MusicController.shared.openMusic()
@@ -286,25 +332,185 @@ struct ApprovalView: View {
 
 struct QuestionView: View {
     @ObservedObject var state: AppState
+    @State private var questionIndex = 0
+    // Per-question selected labels (empty = none chosen yet)
+    @State private var selections: [[String]] = []
+    // Per-question custom "Other…" text
+    @State private var otherTexts: [String] = []
+    // Per-question "Other…" mode active
+    @State private var showOther: [Bool] = []
+    @FocusState private var otherFieldFocused: Bool
+
+    var question: AskQuestion? { state.pendingQuestion }
 
     var body: some View {
         ZStack {
             CardBackground(wash: .cyan)
-            VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "Claude Code is asking a question")
-                Text("Which search engine to use?")
-                    .font(.system(size: 15, weight: .semibold))
-                HStack(spacing: 8) {
-                    ForEach(["Postgres full-text", "Meilisearch", "Algolia"], id: \.self) { opt in
-                        SecondaryButton(opt) { /* answer */ }
+            if let q = question, !q.questions.isEmpty {
+                let qi = min(questionIndex, q.questions.count - 1)
+                let item = q.questions[qi]
+                let isLast = qi == q.questions.count - 1
+                let isMulti = item.multiSelect
+                let curSel = qi < selections.count ? selections[qi] : []
+                let curOther = qi < showOther.count ? showOther[qi] : false
+                let curOtherText = qi < otherTexts.count ? otherTexts[qi] : ""
+                let canProceed = !curSel.isEmpty || (curOther && !curOtherText.isEmpty)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    // Header row: agent name + question counter + "Reply in terminal" link
+                    HStack(spacing: 4) {
+                        AgentWho(task: nil, label: "Claude Code is asking")
+                        Spacer(minLength: 4)
+                        if q.questions.count > 1 {
+                            Text("\(qi + 1)/\(q.questions.count)")
+                                .font(.system(size: 10))
+                                .foregroundColor(Color(hex: "#6B7079"))
+                        }
+                        Button("Reply in terminal") { HookServer.shared.sendQuestionAsk() }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(hex: "#6B7079"))
+                            .underline()
+                    }
+                    // Optional short header label above question text
+                    if !item.header.isEmpty {
+                        Text(item.header)
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(hex: "#6B7079"))
+                    }
+                    Text(item.question)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(hex: "#F5F6F8"))
+                        .lineLimit(2)
+                    // Options (wrapping) or "Other…" compact inline row
+                    if curOther {
+                        HStack(spacing: 6) {
+                            TextField("Your answer…", text: Binding(
+                                get: { qi < otherTexts.count ? otherTexts[qi] : "" },
+                                set: { v in if qi < otherTexts.count { otherTexts[qi] = v } }
+                            ))
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(hex: "#F5F6F8"))
+                            .focused($otherFieldFocused)
+                            .onAppear { otherFieldFocused = true }
+                            .onSubmit { commitOtherAndProceed(q: q, qi: qi, isLast: isLast) }
+                            .onExitCommand { if qi < showOther.count { showOther[qi] = false } }
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(Color.white.opacity(0.07))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Button(isLast ? "Send" : "Next") {
+                                commitOtherAndProceed(q: q, qi: qi, isLast: isLast)
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(curOtherText.isEmpty ? Color(hex: "#6B7079") : Color(hex: "#F5F6F8"))
+                            .padding(.horizontal, 8).padding(.vertical, 5)
+                            .background(Color.white.opacity(curOtherText.isEmpty ? 0.05 : 0.15))
+                            .clipShape(Capsule())
+                            .disabled(curOtherText.isEmpty)
+                            Button { if qi < showOther.count { showOther[qi] = false } } label: {
+                                Text("✕").font(.system(size: 9))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(Color(hex: "#6B7079"))
+                        }
+                    } else {
+                        ChipFlowLayout(spacing: 6) {
+                            ForEach(Array(item.options.enumerated()), id: \.offset) { idx, opt in
+                                let isSelected = curSel.contains(opt.label)
+                                if isMulti {
+                                    Button {
+                                        toggleSelection(qi: qi, label: opt.label)
+                                    } label: {
+                                        Text(opt.label)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .padding(.horizontal, 8).padding(.vertical, 4)
+                                            .background(isSelected ? Color(hex: "#22D3EE").opacity(0.22) : Color.white.opacity(0.07))
+                                            .foregroundColor(isSelected ? Color(hex: "#67E8F9") : Color(hex: "#C5C8CD"))
+                                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                                            .overlay(RoundedRectangle(cornerRadius: 7).stroke(isSelected ? Color(hex: "#22D3EE").opacity(0.55) : Color.white.opacity(0.1), lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .keyboardShortcut(KeyEquivalent(Character(String(idx + 1))), modifiers: [])
+                                } else {
+                                    SecondaryButton(opt.label) {
+                                        selectAndProceed(q: q, qi: qi, label: opt.label, isLast: isLast)
+                                    }
+                                    .keyboardShortcut(KeyEquivalent(Character(String(idx + 1))), modifiers: [])
+                                }
+                            }
+                            // "Other…" implicit free-text option
+                            SecondaryButton("Other…") {
+                                if qi < showOther.count { showOther[qi] = true }
+                            }
+                        }
+                    }
+                    // Send/Next — only for multi-select (and not while "Other…" field is open)
+                    if isMulti && !curOther {
+                        PrimaryButton(isLast ? "Send" : "Next") {
+                            proceedFromQuestion(q: q, qi: qi, isLast: isLast)
+                        }
+                        .disabled(!canProceed)
+                        .opacity(canProceed ? 1 : 0.4)
                     }
                 }
+                .padding(.leading, 116)
+                .padding(.trailing, 16)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.leading, 116)
-            .padding(.trailing, 16)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onAppear { resetQuestionState() }
+        .onChange(of: state.pendingQuestion) { _, _ in resetQuestionState() }
+        .onDisappear { HookServer.shared.releaseQuestionFD() }
+    }
+
+    private func resetQuestionState() {
+        questionIndex = 0
+        let count = state.pendingQuestion?.questions.count ?? 0
+        selections = Array(repeating: [], count: count)
+        otherTexts = Array(repeating: "", count: count)
+        showOther  = Array(repeating: false, count: count)
+    }
+
+    private func toggleSelection(qi: Int, label: String) {
+        guard qi < selections.count else { return }
+        if let i = selections[qi].firstIndex(of: label) {
+            selections[qi].remove(at: i)
+        } else {
+            selections[qi].append(label)
+        }
+    }
+
+    // Single-select: pick a label and immediately advance/send
+    private func selectAndProceed(q: AskQuestion, qi: Int, label: String, isLast: Bool) {
+        guard qi < selections.count else { return }
+        selections[qi] = [label]
+        if isLast { sendAnswers(q: q) } else { withAnimation { questionIndex = qi + 1 } }
+    }
+
+    // Multi-select Send/Next button
+    private func proceedFromQuestion(q: AskQuestion, qi: Int, isLast: Bool) {
+        if isLast { sendAnswers(q: q) } else { withAnimation { questionIndex = qi + 1 } }
+    }
+
+    // "Other…" confirm
+    private func commitOtherAndProceed(q: AskQuestion, qi: Int, isLast: Bool) {
+        let text = qi < otherTexts.count ? otherTexts[qi] : ""
+        guard !text.isEmpty else { return }
+        if qi < selections.count { selections[qi] = [text] }
+        if isLast {
+            sendAnswers(q: q)
+        } else {
+            if qi < showOther.count { showOther[qi] = false }
+            withAnimation { questionIndex = qi + 1 }
+        }
+    }
+
+    private func sendAnswers(q: AskQuestion) {
+        let answers = AskQuestion.buildAnswers(questions: q.questions, selections: selections)
+        HookServer.shared.sendQuestionAnswers(answers)
     }
 }
 
@@ -340,37 +546,226 @@ struct ErrorView: View {
 
 struct FinishedView: View {
     @ObservedObject var state: AppState
+    @State private var showingDiff: FileDiff? = nil
 
     var body: some View {
         ZStack {
             CardBackground(wash: .green)
-            VStack(alignment: .leading, spacing: 5) {
-                AgentWho(task: state.focusTask, label: "Claude Code finished")
-                Text(state.focusTask?.steps.last ?? "Session finished")
-                    .font(.system(size: 15, weight: .semibold))
-                HStack(spacing: 8) {
-                    #if !APPSTORE
-                    PrimaryButton("Open terminal") {
-                        let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
-                        let activated = terminalBundleIds.compactMap { id in
-                            NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
-                        }.first.map { $0.activate(options: .activateIgnoringOtherApps) }
-                        if activated == nil {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
+            if let diff = showingDiff {
+                DiffCardView(diff: diff, onDismiss: { showingDiff = nil })
+                    .transition(.opacity)
+            } else {
+                VStack(alignment: .leading, spacing: 5) {
+                    AgentWho(task: state.focusTask, label: "Claude Code finished")
+                    Text({
+                        if let fl = state.focusTask?.finalLine { return fl }
+                        if let s = state.focusTask?.steps.last(where: { !$0.isDiffStep }) { return s }
+                        return "Session finished"
+                    }())
+                        .font(.system(size: 15, weight: .semibold))
+                    HStack(spacing: 8) {
+                        #if !APPSTORE
+                        PrimaryButton("Open terminal") {
+                            let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
+                            let activated = terminalBundleIds.compactMap { id in
+                                NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
+                            }.first.map { $0.activate(options: .activateIgnoringOtherApps) }
+                            if activated == nil {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
+                            }
+                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
                         }
-                        NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                        #endif
+                        SecondaryButton("OK") {
+                            NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                        }
                     }
-                    #endif
-                    SecondaryButton("OK") {
-                        NotificationCenter.default.post(name: .islandCollapse, object: nil)
+                    // Touched files (up to 4)
+                    let files = state.touchedFiles(for: state.focusTask?.id ?? "")
+                    if !files.isEmpty {
+                        let shown = Array(files.prefix(4))
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(shown.indices, id: \.self) { i in
+                                let f = shown[i]
+                                Button(action: {
+                                    withAnimation(.easeIn(duration: 0.16)) {
+                                        if let taskId = state.focusTask?.id,
+                                           let diffs = state.sessionDiffs[taskId],
+                                           let last = diffs.last(where: { $0.path == f.path }) {
+                                            showingDiff = last
+                                        }
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(URL(fileURLWithPath: f.path).lastPathComponent)
+                                            .font(.system(size: 10.5))
+                                            .foregroundColor(Color(hex: "#9398A1"))
+                                            .lineLimit(1).truncationMode(.middle)
+                                        if f.added > 0 {
+                                            Text("+\(f.added)")
+                                                .font(.system(size: 9, weight: .medium).monospaced())
+                                                .foregroundColor(Color(hex: "#22C55E"))
+                                        }
+                                        if f.removed > 0 {
+                                            Text("−\(f.removed)")
+                                                .font(.system(size: 9, weight: .medium).monospaced())
+                                                .foregroundColor(Color(hex: "#F4505E"))
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if files.count > 4 {
+                                Text("+ \(files.count - 4) more")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(Color(hex: "#6B7079"))
+                            }
+                        }
+                    }
+                }
+                .padding(.leading, 116)
+                .padding(.trailing, 16)
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
+            }
+        }
+    }
+}
+
+// MARK: - Diff Card
+
+struct DiffCardView: View {
+    let diff: FileDiff
+    let onDismiss: () -> Void
+
+    private var allLines: [DiffLine] { diff.hunks.flatMap { $0.lines } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 6) {
+                Button(action: onDismiss) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 8, weight: .medium))
+                        Text(diff.name)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+                }
+                .buttonStyle(.plain)
+                Spacer(minLength: 2)
+                if diff.added > 0 {
+                    Text("+\(diff.added)")
+                        .font(.system(size: 10, weight: .medium).monospaced())
+                        .foregroundColor(Color(hex: "#22C55E"))
+                }
+                if diff.removed > 0 {
+                    Text("−\(diff.removed)")
+                        .font(.system(size: 10, weight: .medium).monospaced())
+                        .foregroundColor(Color(hex: "#F4505E"))
+                }
+                Button(action: { openInEditor(diff) }) {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(Color(hex: "#5F646D"))
+                        .frame(width: 14, height: 14)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 3)
+
+            // Content
+            if diff.tooLarge {
+                Text("Diff too large")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(Color(hex: "#6B7079"))
+            } else if allLines.isEmpty {
+                Text("No changes")
+                    .font(.system(size: 10.5))
+                    .foregroundColor(Color(hex: "#6B7079"))
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(allLines.enumerated()), id: \.offset) { _, line in
+                            DiffLineRowView(line: line)
+                        }
                     }
                 }
             }
-            .padding(.leading, 116)
-            .padding(.trailing, 16)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.leading, 108)
+        .padding(.trailing, 10)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onExitCommand { onDismiss() }
+    }
+
+    private func openInEditor(_ diff: FileDiff) {
+        let path = diff.path
+        #if !APPSTORE
+        let codePaths = ["/opt/homebrew/bin/code", "/usr/local/bin/code", "/usr/bin/code",
+                         "\(NSHomeDirectory())/.nvm/current/bin/code"]
+        if let codePath = codePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: codePath)
+            // Write: open at line 1; Edit/MultiEdit: open file without line number
+            p.arguments = diff.isNewFile ? ["-g", "\(path):1"] : [path]
+            try? p.run()
+            return
+        }
+        #endif
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+}
+
+struct DiffLineRowView: View {
+    let line: DiffLine
+
+    private var bgColor: Color {
+        switch line.kind {
+        case .added:   return Color(hex: "#22C55E").opacity(0.12)
+        case .removed: return Color(hex: "#F4505E").opacity(0.12)
+        case .context: return Color.clear
+        }
+    }
+    private var fgColor: Color {
+        switch line.kind {
+        case .added:   return Color(hex: "#86EFAC")
+        case .removed: return Color(hex: "#FCA5A5")
+        case .context: return Color(hex: "#6B7079")
+        }
+    }
+    private var symbol: String {
+        switch line.kind {
+        case .added:   return "+"
+        case .removed: return "−"
+        case .context: return " "
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(symbol)
+                .font(.system(size: 10.5).monospaced())
+                .foregroundColor(line.kind == .added ? Color(hex: "#22C55E") :
+                                 line.kind == .removed ? Color(hex: "#F4505E") :
+                                 Color(hex: "#454850"))
+                .frame(width: 12, alignment: .leading)
+            Text(line.text)
+                .font(.system(size: 10.5).monospaced())
+                .foregroundColor(fgColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(bgColor)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -798,13 +1193,17 @@ struct PromptView: View {
                             }
                             .padding(.vertical, 2)
                         }
-                        .onChange(of: state.chatHistory.count) { _, _ in
-                            if let last = state.chatHistory.last {
-                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                        .onChange(of: state.chatHistory) { _, _ in
+                            if let last = state.chatHistory.last(where: { !$0.content.isEmpty }) {
+                                proxy.scrollTo(last.id, anchor: .bottom)
                             }
                         }
                         .onChange(of: state.stateOverride) { _, v in
-                            if v != nil { withAnimation { proxy.scrollTo("typing", anchor: .bottom) } }
+                            if v != nil {
+                                withAnimation { proxy.scrollTo("typing", anchor: .bottom) }
+                            } else if let last = state.chatHistory.last(where: { !$0.content.isEmpty }) {
+                                withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                            }
                         }
                         .onAppear {
                             if let last = state.chatHistory.last {
@@ -843,7 +1242,7 @@ struct PromptView: View {
                     .buttonStyle(.plain)
                     .popover(isPresented: $showModelPicker, arrowEdge: .bottom) {
                         ModelPickerView(state: state, isPresented: $showModelPicker)
-                            .frame(width: 380)  // room for the 4 provider chips
+                            .frame(width: 300)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -904,15 +1303,48 @@ struct PromptView: View {
 
 // MARK: - Model / provider picker
 
+/// Wrapping horizontal flow layout — used by ModelPickerView and QuestionView.
+struct ChipFlowLayout: Layout {
+    var spacing: CGFloat = 6
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let r = rows(maxW: proposal.replacingUnspecifiedDimensions().width, subviews: subviews)
+        return r.size
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        let r = rows(maxW: bounds.width, subviews: subviews)
+        for (idx, pt) in r.placements.enumerated() {
+            subviews[idx].place(at: CGPoint(x: bounds.minX + pt.x, y: bounds.minY + pt.y), proposal: .unspecified)
+        }
+    }
+    private func rows(maxW: CGFloat, subviews: Subviews) -> (size: CGSize, placements: [(x: CGFloat, y: CGFloat)]) {
+        var x: CGFloat = 0, y: CGFloat = 0, lineH: CGFloat = 0, maxX: CGFloat = 0
+        var pts: [(x: CGFloat, y: CGFloat)] = []
+        for sv in subviews {
+            let sz = sv.sizeThatFits(.unspecified)
+            if x + sz.width > maxW, x > 0 { x = 0; y += lineH + spacing; lineH = 0 }
+            pts.append((x: x, y: y))
+            x += sz.width + spacing
+            lineH = max(lineH, sz.height)
+            maxX = max(maxX, x - spacing)
+        }
+        return (CGSize(width: max(maxX, 0), height: y + lineH), pts)
+    }
+}
+
 struct ModelPickerView: View {
     @ObservedObject var state: AppState
     @Binding var isPresented: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Provider chips
-            HStack(spacing: 6) {
-                ForEach(ChatProvider.allCases, id: \.self) { provider in
+            // Provider chips — wrap; hide local providers when not connected and not already active
+            let visibleProviders = ChatProvider.allCases.filter { p in
+                if p == .ollama   { return !AppState.shared.ollamaServerURL.isEmpty   || state.chatProvider == .ollama }
+                if p == .lmstudio { return !AppState.shared.lmstudioServerURL.isEmpty || state.chatProvider == .lmstudio }
+                return true
+            }
+            ChipFlowLayout(spacing: 6) {
+                ForEach(visibleProviders, id: \.self) { provider in
                     Button {
                         guard provider != state.chatProvider else { return }
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
@@ -952,8 +1384,19 @@ struct ModelPickerView: View {
         }
         .padding(14)
         .background(Color(hex: "#16171B"))
-        .onAppear { state.fetchModelsIfNeeded(for: state.chatProvider) }
+        .onAppear {
+            // Force-refresh local providers every time the picker opens
+            if state.chatProvider.isLocal {
+                state.fetchedProviderModels[state.chatProvider] = nil
+                state.providerModelFetchError[state.chatProvider] = nil
+            }
+            state.fetchModelsIfNeeded(for: state.chatProvider)
+        }
         .onChange(of: state.chatProvider) { _, provider in
+            if provider.isLocal {
+                state.fetchedProviderModels[provider] = nil
+                state.providerModelFetchError[provider] = nil
+            }
             state.fetchModelsIfNeeded(for: provider)
         }
     }
@@ -984,6 +1427,8 @@ struct ModelPickerView: View {
                             case .google:    state.googleChatModel = model.id
                             case .openai:    state.openAIChatModel = model.id
                             case .deepseek:  state.deepSeekChatModel = model.id
+                            case .ollama:    state.ollamaChatModel = model.id
+                            case .lmstudio:  state.lmstudioChatModel = model.id
                             }
                             isPresented = false
                             SoundEngine.shared.play("blip")
@@ -1020,24 +1465,22 @@ struct ChatBubble: View {
     let message: ChatMessage
 
     var body: some View {
-        HStack(alignment: .top) {
-            if message.role == .user {
-                Spacer(minLength: 32)
-                Text(message.content)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(Color(hex: "#F1F2F4"))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Color.white.opacity(0.13))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                Text(message.content)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(Color(hex: "#B0B5BE"))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                Spacer(minLength: 8)
+        if !message.content.isEmpty {
+            HStack(alignment: .top) {
+                if message.role == .user {
+                    Spacer(minLength: 32)
+                    Text(message.content)
+                        .font(.system(size: 12.5))
+                        .foregroundColor(Color(hex: "#F1F2F4"))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Color.white.opacity(0.13))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    ChatMarkdownView(markdown: message.content)
+                    Spacer(minLength: 8)
+                }
             }
         }
     }
@@ -1171,6 +1614,7 @@ struct NoteView: View {
 struct IntegrationCardView: View {
     let task: AgentTask
     @Binding var showingDetail: Bool
+    var onDiffTap: ((Int) -> Void)? = nil
     @ObservedObject private var appState = AppState.shared
 
     private var isConfigured: Bool {
@@ -1226,6 +1670,8 @@ struct IntegrationCardView: View {
         case "ai_google":     return KeychainStore.shared.get("google-api-key")    != nil
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
         case "ai_deepseek":   return KeychainStore.shared.get("deepseek-api-key")  != nil
+        case "ai_ollama":     return !AppState.shared.ollamaServerURL.isEmpty
+        case "ai_lmstudio":   return !AppState.shared.lmstudioServerURL.isEmpty
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -1356,19 +1802,32 @@ struct IntegrationCardView: View {
                    : nil
         if let err = svcErr { return err }
         let isHooks = task.id == "agent_gemini" || task.id == "agent_antigravity"
-        let isAI    = PillCatalog.definition(for: task.id)?.category == .ai
+        let isAI    = ChatProvider(pillID: task.id) != nil
         if isConfigured {
             if isHooks { return "Hooks installed" }
             if isAI {
-                let model = task.id == "ai_anthropic" ? appState.claudeModel
-                          : task.id == "ai_google"    ? appState.googleChatModel
-                          : task.id == "ai_deepseek"  ? appState.deepSeekChatModel
-                          :                             appState.openAIChatModel
+                let provider = ChatProvider(pillID: task.id)!
+                if provider.isLocal {
+                    let model = provider == .ollama ? appState.ollamaChatModel : appState.lmstudioChatModel
+                    return "Connected · \(model)"
+                }
+                let model: String
+                switch task.id {
+                case "ai_anthropic": model = appState.claudeModel
+                case "ai_google":    model = appState.googleChatModel
+                case "ai_openai":    model = appState.openAIChatModel
+                case "ai_deepseek":  model = appState.deepSeekChatModel
+                default:             model = ""
+                }
                 return "Key configured · \(model)"
             }
             return "Connected · loading…"
         } else {
             if isHooks { return "Hooks not installed" }
+            if isAI {
+                let provider = ChatProvider(pillID: task.id)!
+                return provider.isLocal ? "Not connected" : "Key not configured"
+            }
             return "Key not configured"
         }
     }
@@ -1442,7 +1901,7 @@ struct IntegrationCardView: View {
                 .padding(.leading, 108)
                 .padding(.trailing, 36)
 
-                TickerView(task: task)
+                TickerView(task: task, onDiffTap: onDiffTap)
                     .frame(height: 44)
                     .padding(.top, 6)
                     .padding(.leading, 108)
@@ -1525,11 +1984,8 @@ struct IntegrationCardView: View {
                             .buttonStyle(.plain)
                         }
                         #endif
-                    } else if PillCatalog.definition(for: task.id)?.category == .ai {
+                    } else if let provider = ChatProvider(pillID: task.id) {
                         if isConfigured {
-                            let provider: ChatProvider = task.id == "ai_anthropic" ? .anthropic
-                                                       : task.id == "ai_google"    ? .google
-                                                       : task.id == "ai_deepseek"  ? .deepseek : .openai
                             Button("Chat with \(task.name)") {
                                 switchChatProvider(provider)
                             }
@@ -2588,6 +3044,7 @@ struct N8nDetailView: View {
 
 struct TickerView: View {
     let task: AgentTask?
+    var onDiffTap: ((Int) -> Void)? = nil
 
     @State private var rowA: String = "…"   // completed (above, left-shifted)
     @State private var rowB: String = "…"   // current (below) → animates diagonally up-left
@@ -2611,22 +3068,26 @@ struct TickerView: View {
     }
 
     var body: some View {
+        let isActive = task?.state == .thinking || task?.state == .working
+        let rowADiffTap: (() -> Void)? = rowA.parseDiffStep().map { dp in { onDiffTap?(dp.diffId) } }
+        let rowBDiffTap: (() -> Void)? = rowB.parseDiffStep().map { dp in { onDiffTap?(dp.diffId) } }
+
         ZStack(alignment: .topLeading) {
             Color.clear
 
             // Row A: completed row — always rendered at phase=1 + completedScale
-            TickerRowView(text: rowA, phase: 1.0)
+            TickerRowView(text: rowA, phase: 1.0, isActive: isActive, onDiffTap: rowADiffTap)
                 .scaleEffect(completedScale, anchor: .leading)
                 .offset(x: -10, y: rowAOffset)
                 .opacity(rowAOpacity)
 
             // Row B: current step → animates diagonally up-left, phase 0→1, scale 1→completedScale
-            TickerRowView(text: rowB, phase: rowBPhase)
+            TickerRowView(text: rowB, phase: rowBPhase, isActive: isActive, onDiffTap: rowBDiffTap)
                 .scaleEffect(1 - rowBPhase * (1 - completedScale), anchor: .leading)
                 .offset(x: -rowBPhase * 10, y: rowBOffset)
 
             // Row C: incoming new step — slides in from below at phase=0
-            TickerRowView(text: rowC, phase: 0.0)
+            TickerRowView(text: rowC, phase: 0.0, isActive: isActive)
                 .offset(y: rowCOffset)
                 .opacity(rowCOpacity)
         }
@@ -2705,35 +3166,87 @@ struct TickerView: View {
 struct TickerRowView: View {
     let text: String
     let phase: Double   // 0 = current (shimmer, large), 1 = completed (dim, scaled down by caller)
+    var isActive: Bool = true
+    var onDiffTap: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 6) {
-            // Icon: chevron fades out first half, checkmark fades in second half
-            ZStack {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                    .opacity(max(0, 1 - phase * 2))
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8, weight: .regular))
-                    .foregroundColor(Color(hex: "#454850"))
-                    .opacity(max(0, phase * 2 - 1))
-            }
-            .frame(width: 12, alignment: .center)
+        let chevronOpacity:   Double = isActive ? max(0, 1 - phase * 2)       : 0
+        let checkmarkOpacity: Double = isActive ? max(0, phase * 2 - 1)       : 1
+        let shimmerOpacity:   Double = isActive ? max(0, 1 - phase * 1.6)     : 0
+        let staticOpacity:    Double = isActive ? min(1, max(0, phase * 2 - 0.4)) : 1
+        let staticColor = (!isActive && phase < 0.5) ? Color(hex: "#C9CDD4") : Color(hex: "#6B7079")
 
-            // Text: shimmer fades out, dim completed text fades in (overlapping cross-fade)
-            ZStack(alignment: .leading) {
-                TickerShimmerText(text: text)
-                    .opacity(max(0, 1 - phase * 1.6))
-                Text(text)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color(hex: "#6B7079"))
-                    .lineLimit(1).truncationMode(.tail)
-                    .opacity(min(1, max(0, phase * 2 - 0.4)))
+        if let dp = text.parseDiffStep() {
+            HStack(spacing: 6) {
+                ZStack {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                        .opacity(chevronOpacity)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .regular))
+                        .foregroundColor(Color(hex: "#454850"))
+                        .opacity(checkmarkOpacity)
+                }
+                .frame(width: 12, alignment: .center)
+                // Filename + counts
+                HStack(spacing: 0) {
+                    ZStack(alignment: .leading) {
+                        TickerShimmerText(text: dp.filename)
+                            .opacity(shimmerOpacity)
+                        Text(dp.filename)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(staticColor)
+                            .lineLimit(1).truncationMode(.tail)
+                            .opacity(staticOpacity)
+                    }
+                    if dp.added > 0 {
+                        Text(" +\(dp.added)")
+                            .font(.system(size: 10, weight: .medium).monospaced())
+                            .foregroundColor(Color(hex: "#22C55E"))
+                            .fixedSize()
+                    }
+                    if dp.removed > 0 {
+                        Text(" −\(dp.removed)")
+                            .font(.system(size: 10, weight: .medium).monospaced())
+                            .foregroundColor(Color(hex: "#F4505E"))
+                            .fixedSize()
+                    }
+                }
             }
+            .frame(height: 22, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { onDiffTap?() }
+        } else {
+            HStack(spacing: 6) {
+                // Icon: chevron fades out first half, checkmark fades in second half
+                ZStack {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                        .opacity(chevronOpacity)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .regular))
+                        .foregroundColor(Color(hex: "#454850"))
+                        .opacity(checkmarkOpacity)
+                }
+                .frame(width: 12, alignment: .center)
+
+                // Text: shimmer fades out, dim completed text fades in (overlapping cross-fade)
+                ZStack(alignment: .leading) {
+                    TickerShimmerText(text: text)
+                        .opacity(shimmerOpacity)
+                    Text(text)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(staticColor)
+                        .lineLimit(1).truncationMode(.tail)
+                        .opacity(staticOpacity)
+                }
+            }
+            .frame(height: 22, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: 22, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2906,6 +3419,8 @@ struct AgentPill: View {
     let onTap: () -> Void
     @State private var isHovered = false
 
+    private var effectiveColor: String { task.color }
+
     // VS Code pill always shows "VS Code" label regardless of active project name
     private var displayName: String {
         task.id == "integration_claude" ? "VS Code" : task.name
@@ -2917,10 +3432,10 @@ struct AgentPill: View {
                 ZStack {
                     Capsule()
                         .fill(isHovered
-                              ? Color(hex: task.color).opacity(0.18)
+                              ? Color(hex: effectiveColor).opacity(0.18)
                               : Color(hex: "#0E0F11"))
                     Capsule()
-                        .stroke(Color(hex: task.color).opacity(isHovered ? 0.55 : 0.14), lineWidth: 1)
+                        .stroke(Color(hex: effectiveColor).opacity(isHovered ? 0.55 : 0.14), lineWidth: 1)
                     HStack(spacing: 0) {
                         MiniBotCanvasView(task: task)
                             .frame(width: 22 / 0.6, height: 22 / 0.6)
@@ -2931,7 +3446,7 @@ struct AgentPill: View {
                     Text(displayName)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(isHovered
-                                         ? Color(hex: task.color).lighter(by: 0.3)
+                                         ? Color(hex: effectiveColor).lighter(by: 0.3)
                                          : Color(hex: "#6B7079"))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -2939,11 +3454,11 @@ struct AgentPill: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 28)
-                .shadow(color: Color(hex: task.color).opacity(isHovered ? 0.35 : 0), radius: 10, x: 0, y: 2)
+                .shadow(color: Color(hex: effectiveColor).opacity(isHovered ? 0.35 : 0), radius: 10, x: 0, y: 2)
 
                 // Alert badge (approval / finished / error)
                 if let badge = task.pillBadge {
-                    PillBadgeView(badge: badge, taskColor: task.color)
+                    PillBadgeView(badge: badge, taskColor: effectiveColor)
                         .offset(x: 3, y: -3)
                 }
             }

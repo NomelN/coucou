@@ -72,6 +72,18 @@ final class AppState: ObservableObject {
     @Published var deepSeekChatModel: String = ChatProvider.deepseek.defaultModel {
         didSet { UserDefaults.standard.set(deepSeekChatModel, forKey: "deepSeekChatModel") }
     }
+    @Published var ollamaChatModel: String = ChatProvider.ollama.defaultModel {
+        didSet { UserDefaults.standard.set(ollamaChatModel, forKey: "ollamaChatModel") }
+    }
+    @Published var lmstudioChatModel: String = ChatProvider.lmstudio.defaultModel {
+        didSet { UserDefaults.standard.set(lmstudioChatModel, forKey: "lmstudioChatModel") }
+    }
+    @Published var ollamaServerURL: String = "" {
+        didSet { UserDefaults.standard.set(ollamaServerURL, forKey: "ollamaServerURL") }
+    }
+    @Published var lmstudioServerURL: String = "" {
+        didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
+    }
 
     // The always-on workspace pill (default: VS Code). Persisted.
     @Published var mainPillId: String = PillCatalog.defaultMainPillId {
@@ -88,6 +100,41 @@ final class AppState: ObservableObject {
     func fetchModelsIfNeeded(for provider: ChatProvider) {
         guard !loadingProviderModels.contains(provider),
               fetchedProviderModels[provider] == nil else { return }
+        // Local providers: fetch from server URL (no API key needed)
+        if provider.isLocal {
+            let baseURL = provider == .ollama ? ollamaServerURL : lmstudioServerURL
+            let normalised = LocalChat.normaliseURL(baseURL)
+            guard !normalised.isEmpty else {
+                providerModelFetchError[provider] = provider == .ollama
+                    ? "Connect Ollama in Settings → Chat first."
+                    : "Connect LM Studio in Settings → Chat first."
+                return
+            }
+            loadingProviderModels.insert(provider)
+            providerModelFetchError.removeValue(forKey: provider)
+            Task {
+                let result = await LocalChat.fetchModelsResult(baseURL: normalised)
+                loadingProviderModels.remove(provider)
+                switch result {
+                case .success(let models) where models.isEmpty:
+                    providerModelFetchError[provider] = provider == .ollama
+                        ? "No models yet. Download one in Ollama first."
+                        : "No models yet. Download one in LM Studio first."
+                case .success(let models):
+                    fetchedProviderModels[provider] = models
+                    let current = provider == .ollama ? ollamaChatModel : lmstudioChatModel
+                    if !models.contains(where: { $0.id == current }) {
+                        let first = models.first!.id
+                        if provider == .ollama { ollamaChatModel = first }
+                        else                   { lmstudioChatModel = first }
+                    }
+                case .failure:
+                    providerModelFetchError[provider] = "Cannot reach \(normalised). Is the server running?"
+                }
+            }
+            return
+        }
+        // Remote providers: require API key
         guard let apiKey = KeychainStore.shared.get(provider.keychainKey), !apiKey.isEmpty else {
             providerModelFetchError[provider] = "No API key — add it in Settings."
             return
@@ -101,14 +148,13 @@ final class AppState: ObservableObject {
             case .google:    models = await ClaudeService.fetchGoogleModels(apiKey: apiKey)
             case .openai:    models = await ClaudeService.fetchOpenAIModels(apiKey: apiKey)
             case .deepseek:  models = await ClaudeService.fetchDeepSeekModels(apiKey: apiKey)
+            case .ollama, .lmstudio: models = []  // handled above
             }
             loadingProviderModels.remove(provider)
             if models.isEmpty {
                 providerModelFetchError[provider] = "Failed to load models. Check your API key."
             } else {
                 fetchedProviderModels[provider] = models
-                // If the saved model isn't in the fetched list, pick a sensible default:
-                // prefer "sonnet" (Anthropic), "flash" (Google), "mini" (OpenAI), "chat" (DeepSeek); else first.
                 switch provider {
                 case .anthropic:
                     if !models.contains(where: { $0.id == claudeModel }) {
@@ -126,6 +172,7 @@ final class AppState: ObservableObject {
                     if !models.contains(where: { $0.id == deepSeekChatModel }) {
                         deepSeekChatModel = models.first(where: { $0.id.contains("chat") })?.id ?? models.first!.id
                     }
+                case .ollama, .lmstudio: break
                 }
             }
         }
@@ -138,6 +185,8 @@ final class AppState: ObservableObject {
         case .google:    return googleChatModel
         case .openai:    return openAIChatModel
         case .deepseek:  return deepSeekChatModel
+        case .ollama:    return ollamaChatModel
+        case .lmstudio:  return lmstudioChatModel
         }
     }
 
@@ -251,6 +300,60 @@ final class AppState: ObservableObject {
     // Pending approval request from Claude Code hook
     @Published var pendingApproval: ApprovalInfo? = nil
 
+    // Pending AskUserQuestion from Claude Code hook
+    @Published var pendingQuestion: AskQuestion? = nil
+
+    // Per-pill flat list of FileDiffs, in order of reception.
+    // Not @Published — steps[] changes already trigger redraws.
+    var sessionDiffs: [String: [FileDiff]] = [:]
+    private var sessionDiffTimers: [String: DispatchWorkItem] = [:]
+    // Monotonically increasing — never reset, not even in clearSessionDiffs.
+    private var nextDiffId: Int = 0
+
+    @discardableResult
+    func appendSessionDiff(_ diff: FileDiff, for pillId: String) -> Int {
+        var d = diff
+        d.id = nextDiffId
+        nextDiffId += 1
+        if sessionDiffs[pillId] == nil { sessionDiffs[pillId] = [] }
+        sessionDiffs[pillId]!.append(d)
+        // Keep at most 50 diffs per pill; drop oldest first
+        while sessionDiffs[pillId]!.count > 50 {
+            sessionDiffs[pillId]!.removeFirst()
+        }
+        resetSessionDiffTimer(for: pillId)
+        return d.id
+    }
+
+    func clearSessionDiffs(for pillId: String) {
+        sessionDiffTimers[pillId]?.cancel()
+        sessionDiffTimers.removeValue(forKey: pillId)
+        sessionDiffs.removeValue(forKey: pillId)
+        // nextDiffId intentionally NOT reset — ids remain unique across sessions
+    }
+
+    /// Unique touched files for a pill, in first-touch order, with summed totals.
+    func touchedFiles(for pillId: String) -> [(path: String, added: Int, removed: Int)] {
+        guard let diffs = sessionDiffs[pillId] else { return [] }
+        var seen: [String: (added: Int, removed: Int)] = [:]
+        var order: [String] = []
+        for d in diffs {
+            if seen[d.path] == nil { order.append(d.path) }
+            let p = seen[d.path] ?? (0, 0)
+            seen[d.path] = (p.added + d.added, p.removed + d.removed)
+        }
+        return order.map { path in let t = seen[path]!; return (path, t.added, t.removed) }
+    }
+
+    private func resetSessionDiffTimer(for pillId: String) {
+        sessionDiffTimers[pillId]?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            DispatchQueue.main.async { self?.clearSessionDiffs(for: pillId) }
+        }
+        sessionDiffTimers[pillId] = work
+        DispatchQueue.global().asyncAfter(deadline: .now() + 3600, execute: work)
+    }
+
     #if !APPSTORE
     @Published var musicPlaying: Bool = false
     @Published var musicAutomationDenied: Bool = false
@@ -280,6 +383,31 @@ final class AppState: ObservableObject {
     }
     #endif
 
+    // Claude plan gauge (from statusline hook)
+    @Published var claudePlanUsage: PlanUsage? = nil {
+        didSet {
+            if let u = claudePlanUsage,
+               let data = try? JSONEncoder().encode(u) {
+                UserDefaults.standard.set(data, forKey: "claudePlanUsage")
+            }
+        }
+    }
+
+    // Plan gauge: show pill in notch header — persisted
+    #if !APPSTORE
+    @Published var showPlanInNotch: Bool = false {
+        didSet { UserDefaults.standard.set(showPlanInNotch, forKey: "showPlanInNotch") }
+    }
+    // Cached relay-installed state — updated at launch, after install/uninstall, on Settings open
+    @Published var planRelayInstalled: Bool = false
+    // Transient — reset when island closes or view changes
+    @Published var showingPlanDetail: Bool = false
+
+    func refreshPlanRelayState() {
+        planRelayInstalled = HookServer.statusLineInstalled()
+    }
+    #endif
+
     // MARK: - Init (loads persisted settings)
 
     private init() {
@@ -293,6 +421,10 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "googleChatModel"), !v.isEmpty { googleChatModel = v }
         if let v = ud.string(forKey: "openAIChatModel"), !v.isEmpty { openAIChatModel = v }
         if let v = ud.string(forKey: "deepSeekChatModel"), !v.isEmpty { deepSeekChatModel = v }
+        if let v = ud.string(forKey: "ollamaChatModel"), !v.isEmpty { ollamaChatModel = v }
+        if let v = ud.string(forKey: "lmstudioChatModel"), !v.isEmpty { lmstudioChatModel = v }
+        if let v = ud.string(forKey: "ollamaServerURL"), !v.isEmpty { ollamaServerURL = v }
+        if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
             autoCloseInterval = (v == 60) ? 15 : v
@@ -316,6 +448,12 @@ final class AppState: ObservableObject {
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
         }
+        if let d = ud.data(forKey: "claudePlanUsage"),
+           let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
+        #if !APPSTORE
+        if let v = ud.object(forKey: "showPlanInNotch") as? Bool { showPlanInNotch = v }
+        planRelayInstalled = HookServer.statusLineInstalled()
+        #endif
 
         // Sync SoundEngine volume on launch
         SoundEngine.shared.volume = Float(soundVolume)
@@ -400,7 +538,8 @@ final class AppState: ObservableObject {
     /// If the island is not open, it opens on the overview so the notification is seen —
     /// also when the pill already has the focus (then only the island opens and folds back).
     func focusForNotice(_ id: String) {
-        guard pendingApproval == nil else { return }  // the approval card owns the focus
+        // The approval and question cards own the focus
+        guard pendingApproval == nil, pendingQuestion == nil else { return }
         guard tasks.contains(where: { $0.id == id }) else { return }
         let focusedByUser = focusId == id && noticeFocusId != id
         if focusedByUser && mode == .expanded { return }  // already in front of the user
@@ -447,7 +586,7 @@ final class AppState: ObservableObject {
         }
         // Fold the island back if the notification opened it and the user didn't go elsewhere.
         // The window controller waits for the mouse to leave the island first.
-        if openedIsland, mode == .expanded, view == .overview, pendingApproval == nil {
+        if openedIsland, mode == .expanded, view == .overview, pendingApproval == nil, pendingQuestion == nil {
             NotificationCenter.default.post(name: .noticeCollapse, object: nil)
         }
     }
@@ -687,8 +826,8 @@ struct NotionPage: Identifiable {
 
 enum ChatRole { case user, assistant }
 
-struct ChatMessage: Identifiable {
+struct ChatMessage: Identifiable, Equatable {
     let id = UUID()
     let role: ChatRole
-    let content: String
+    var content: String   // var for streaming updates
 }
