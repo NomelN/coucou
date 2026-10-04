@@ -49,6 +49,7 @@
 		62C4EE3F74DAA59764729E62 /* UploadCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */; };
 		63093DC288B68F7F17249517 /* GitHubActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168A9A73B519018FAB0AA465 /* GitHubActivity.swift */; };
 		63F9F3AAC881D3EDDDD8AED9 /* UserIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */; };
+		6404D852591B6F6C972C1A5E /* CalendarMonthGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E467E3B05E003A2A7A99319B /* CalendarMonthGrid.swift */; };
 		651FA3F09608DE5D02D61CCE /* BotCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */; };
 		6697436AA05A3F92C1DD85C3 /* DiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB24C2469551040FBAA4DBF /* DiffEngine.swift */; };
 		68A950E3C23FD612639D9776 /* IslandViewContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA02B08886939FF6FE0475DD /* IslandViewContent.swift */; };
@@ -108,6 +109,7 @@
 		EE5F528D02D3EAF1E9D96A3D /* voice in Resources */ = {isa = PBXBuildFile; fileRef = 92A1B0FD91AA3521FB60668F /* voice */; };
 		F06EE0A97CB77096A337AA8B /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = C066E2B991AA4F56B2724263 /* sounds */; };
 		F11A2EBCBF7352536B2CB93D /* MochiWardrobe.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0BB15BD82E4A0B729045880 /* MochiWardrobe.swift */; };
+		F174FD74A2B0A2BAED9C74B9 /* CalendarMonthGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = E467E3B05E003A2A7A99319B /* CalendarMonthGrid.swift */; };
 		FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */; };
 		FBBC4CDE82B5886A83A27D7A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 506824380E9C80B9BC6DCE72 /* Assets.xcassets */; };
 		FEFEF1EBAB0E6CA74A33C10B /* SafeWebURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */; };
@@ -161,6 +163,7 @@
 		D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdown.swift; sourceTree = "<group>"; };
 		D8212018F09EA1E96FBD63CD /* IslandStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandStateMachine.swift; sourceTree = "<group>"; };
 		D9B356A12970A1E1FF99C55D /* CalendarWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarWatcher.swift; sourceTree = "<group>"; };
+		E467E3B05E003A2A7A99319B /* CalendarMonthGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarMonthGrid.swift; sourceTree = "<group>"; };
 		E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskQuestion.swift; sourceTree = "<group>"; };
 		F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchBuddyApp.swift; sourceTree = "<group>"; };
@@ -181,6 +184,7 @@
 				A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */,
 				D4540F630F8BA04AFFFA3979 /* BotEngine.swift */,
 				3104222B3F17BA5E8DEA5277 /* CalcomPoller.swift */,
+				E467E3B05E003A2A7A99319B /* CalendarMonthGrid.swift */,
 				D9B356A12970A1E1FF99C55D /* CalendarWatcher.swift */,
 				D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */,
 				BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */,
@@ -375,6 +379,7 @@
 				CD8DECA66B9E09C97E469DB9 /* BotCanvasView.swift in Sources */,
 				C24D863967D8D32D828ED4B1 /* BotEngine.swift in Sources */,
 				4F1E0B3C838DA3CD6F864BC0 /* CalcomPoller.swift in Sources */,
+				F174FD74A2B0A2BAED9C74B9 /* CalendarMonthGrid.swift in Sources */,
 				AE88CF1BB37FE5522D224358 /* CalendarWatcher.swift in Sources */,
 				8FC5907E9506DC79EB1DDC3C /* ChatMarkdown.swift in Sources */,
 				4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */,
@@ -431,6 +436,7 @@
 				651FA3F09608DE5D02D61CCE /* BotCanvasView.swift in Sources */,
 				0E9CE475EC53C67DAB00F8E5 /* BotEngine.swift in Sources */,
 				1969590AFEE6CB21404346F1 /* CalcomPoller.swift in Sources */,
+				6404D852591B6F6C972C1A5E /* CalendarMonthGrid.swift in Sources */,
 				DAC36C6C5B8C7A6C5FC8AD37 /* CalendarWatcher.swift in Sources */,
 				B2D86BE268D6F4C86BD0C446 /* ChatMarkdown.swift in Sources */,
 				733FCC6A45DE963EF2024B4E /* ChatMarkdownView.swift in Sources */,

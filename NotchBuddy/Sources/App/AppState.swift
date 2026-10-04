@@ -448,6 +448,9 @@ final class AppState: ObservableObject {
     @Published var calendarEvents: [CalendarEventInfo] = []
     /// Event whose alert just showed: highlighted in the card for a minute.
     @Published var calendarAlertEventId: String? = nil
+    /// Month shown in the card's grid (any date in it), and its days that have events.
+    @Published var calendarMonth: Date = Date()
+    @Published var calendarMonthColors: [Int: [String]] = [:]
     /// Calendars unchecked in Settings (identifiers). Empty = every calendar, new ones included.
     @Published var calendarHidden: [String] = [] {
         didSet {

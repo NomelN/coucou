@@ -1755,7 +1755,6 @@ struct IntegrationCardView: View {
     private var calendarHasData: Bool {
         #if !APPSTORE
         task.id == "integration_calendar" && appState.calendarAccess == .fullAccess
-            && !appState.calendarEvents.isEmpty
         #else
         false
         #endif
@@ -2546,48 +2545,131 @@ struct MailCardView: View {
 
 // MARK: - Calendar Card View (GitHub build only)
 
-/// Today's coming events from the Mac's Calendar, same layout as the Mail card.
+/// The month grid of the Mac's Calendar (‹ › between months, a tap on the title comes back to
+/// this month). A day shows its events; an alert shows today's, the alerted one first.
 /// A row opens the event in Calendar; Join opens its video call.
 struct CalendarCardView: View {
     @ObservedObject var appState = AppState.shared
+    /// Day picked in the grid; nil = the grid (or today's list while an alert shows).
+    @State private var pickedDay: Date? = nil
+    @State private var pickedEvents: [CalendarEventInfo] = []
 
     private let accent = Color(hex: "#FF7A45")
+    private var cal: Calendar { Calendar.current }
 
-    /// The event whose alert just showed comes first, then the next ones.
-    private var events: [CalendarEventInfo] {
-        let all = appState.calendarEvents
-        guard let alerted = appState.calendarAlertEventId,
-              let hit = all.first(where: { $0.id == alerted }) else { return Array(all.prefix(3)) }
-        return Array(([hit] + all.filter { $0.id != alerted }).prefix(3))
+    private var isCurrentMonth: Bool { cal.isDate(appState.calendarMonth, equalTo: Date(), toGranularity: .month) }
+
+    private var monthTitle: String {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("LLLL yyyy")
+        return f.string(from: appState.calendarMonth)
+    }
+
+    /// The list shown instead of the grid: the picked day, or today while an alert shows.
+    private var list: (title: String, events: [CalendarEventInfo])? {
+        if let day = pickedDay {
+            let f = DateFormatter()
+            f.setLocalizedDateFormatFromTemplate("EEE d MMM")
+            return (cal.isDateInToday(day) ? "Today" : f.string(from: day), pickedEvents)
+        }
+        if let alerted = appState.calendarAlertEventId,
+           let hit = appState.calendarEvents.first(where: { $0.id == alerted }) {
+            return ("Today", [hit] + appState.calendarEvents.filter { $0.id != alerted })
+        }
+        return nil
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
+        VStack(alignment: .leading, spacing: 2) {
+            if let list {
+                dayList(title: list.title, events: list.events)
+            } else {
+                monthGrid
+            }
+        }
+        .padding(.top, 4)
+        .padding(.leading, 108)
+        .padding(.trailing, 12)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .onAppear {
+            // Back to this month each time the card shows
+            pickedDay = nil
+            if !isCurrentMonth { CalendarWatcher.shared.showMonth(0) }
+        }
+    }
+
+    // MARK: Grid
+
+    private var monthGrid: some View {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(accent)
-                    .frame(width: 7, height: 7)
+                Circle().fill(accent).frame(width: 7, height: 7)
                 Text("Calendar")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
-                Text("Today")
-                    .font(.system(size: 11))
+                Button { CalendarWatcher.shared.showMonth(0) } label: {
+                    Text(monthTitle)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: isCurrentMonth ? "#8E939C" : "#C5C8CD"))
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .help("Back to this month")
+                Spacer(minLength: 0)
+                HStack(spacing: 0) {
+                    PageArrow(systemName: "chevron.left", enabled: true, badge: nil, height: 14) {
+                        CalendarWatcher.shared.showMonth(-1); SoundEngine.shared.play("tick")
+                    }
+                    PageArrow(systemName: "chevron.right", enabled: true, badge: nil, height: 14) {
+                        CalendarWatcher.shared.showMonth(1); SoundEngine.shared.play("tick")
+                    }
+                }
+            }
+            .frame(height: 14)
+            CalendarMonthGrid(month: appState.calendarMonth,
+                              eventColors: appState.calendarMonthColors,
+                              accent: accent,
+                              height: 76) { day in
+                pickedEvents = CalendarWatcher.shared.events(on: day)
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) { pickedDay = day }
+                SoundEngine.shared.play("blip")
+            }
+        }
+    }
+
+    // MARK: Day list
+
+    private func dayList(title: String, events: [CalendarEventInfo]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                        pickedDay = nil
+                        appState.calendarAlertEventId = nil
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left").font(.system(size: 8, weight: .semibold))
+                        Text("Month").font(.system(size: 10, weight: .medium))
+                    }
                     .foregroundColor(Color(hex: "#8E939C"))
-                let n = appState.calendarEvents.count
-                Text("\(n) event\(n > 1 ? "s" : "")")
+                }
+                .buttonStyle(.plain)
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+                    .lineLimit(1)
+                Text(events.isEmpty ? "No events" : "\(events.count) event\(events.count > 1 ? "s" : "")")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(hex: "#C5C8CD"))
+                    .foregroundColor(Color(hex: "#8E939C"))
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            .padding(.top, 6)
-            .padding(.leading, 108)
-            .padding(.trailing, 36)
+            .frame(height: 14)
+            .padding(.top, 2)
 
-            // Event rows — first is highlighted, rest plain (same structure as the Mail card)
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(Array(events.enumerated()), id: \.element.id) { idx, event in
+                ForEach(Array(events.prefix(3).enumerated()), id: \.element.id) { idx, event in
                     HStack(spacing: 5) {
                         Button { CalendarWatcher.open(event) } label: {
                             HStack(spacing: 5) {
@@ -2621,13 +2703,15 @@ struct CalendarCardView: View {
                     .background(idx == 0 ? accent.opacity(0.08) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
+                if events.count > 3 {
+                    Text("+ \(events.count - 3) more")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(hex: "#6B7079"))
+                        .padding(.leading, 8)
+                }
             }
             .padding(.top, 5)
-            .padding(.leading, 108)
-            .padding(.trailing, 12)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.top, 4)
     }
 }
 #endif

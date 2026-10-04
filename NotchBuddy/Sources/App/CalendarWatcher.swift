@@ -104,6 +104,7 @@ final class CalendarWatcher {
             return
         }
         let calendars = watchedCalendars
+        loadMonth()
         guard !calendars.isEmpty else {
             state.calendarEvents = []
             state.calendarLoaded = true
@@ -149,6 +150,57 @@ final class CalendarWatcher {
             alertTimer = timer
         }
         if notified.count > 500 { notified.removeAll() }
+    }
+
+    // MARK: - Month grid
+
+    /// Fills the grid's dots for `calendarMonth`: each day an event covers gets its calendar's color.
+    func loadMonth() {
+        let state = AppState.shared
+        guard Self.hasAccess, let month = Calendar.current.dateInterval(of: .month, for: state.calendarMonth) else {
+            state.calendarMonthColors = [:]
+            return
+        }
+        let cal = Calendar.current
+        var colors: [Int: [String]] = [:]
+        let calendars = watchedCalendars
+        if !calendars.isEmpty {
+            let events = store.events(matching: store.predicateForEvents(withStart: month.start, end: month.end,
+                                                                          calendars: calendars))
+            for event in events {
+                guard let start = event.startDate, let end = event.endDate else { continue }
+                let color = Self.hex(event.calendar?.color)
+                var day = cal.startOfDay(for: max(start, month.start))
+                let last = min(end, month.end)
+                repeat {
+                    let n = cal.component(.day, from: day)
+                    if !(colors[n] ?? []).contains(color), (colors[n]?.count ?? 0) < 3 { colors[n, default: []].append(color) }
+                    guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+                    day = next
+                } while day < last
+            }
+        }
+        state.calendarMonthColors = colors
+    }
+
+    /// Shows another month in the grid (-1 = previous, +1 = next, 0 = the current one).
+    func showMonth(_ delta: Int) {
+        let state = AppState.shared
+        state.calendarMonth = delta == 0 ? Date()
+            : Calendar.current.date(byAdding: .month, value: delta, to: state.calendarMonth) ?? Date()
+        loadMonth()
+    }
+
+    /// Every event of one day in the watched calendars, all-day ones first.
+    func events(on day: Date) -> [CalendarEventInfo] {
+        guard Self.hasAccess else { return [] }
+        let calendars = watchedCalendars
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: day)
+        guard !calendars.isEmpty, let end = cal.date(byAdding: .day, value: 1, to: start) else { return [] }
+        return store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: calendars))
+            .sorted { ($0.isAllDay ? 0 : 1, $0.startDate) < ($1.isAllDay ? 0 : 1, $1.startDate) }
+            .map(Self.info)
     }
 
     private static func alertDates(of event: EKEvent) -> [Date] {
@@ -252,7 +304,8 @@ struct CalendarEventInfo: Identifiable, Equatable, Sendable {
     /// "All day", "Now" while it runs, otherwise the start time ("14:30").
     var when: String {
         if isAllDay { return "All day" }
-        if start <= Date() { return "Now" }
+        let now = Date()
+        if start <= now && end > now { return "Now" }
         let f = DateFormatter()
         f.timeStyle = .short
         f.dateStyle = .none
