@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import EventKit
 
 
 @MainActor
@@ -439,6 +440,22 @@ final class AppState: ObservableObject {
     var shownMailInbox: MailInbox? {
         mailInboxes.first { $0.account == mailShownAccount } ?? mailInboxes.first
     }
+
+    // macOS Calendar (read by CalendarWatcher through EventKit)
+    @Published var calendarAccess: EKAuthorizationStatus = .notDetermined
+    @Published var calendarLoaded: Bool = false
+    /// Today's events not over yet, from the watched calendars.
+    @Published var calendarEvents: [CalendarEventInfo] = []
+    /// Event whose alert just showed: highlighted in the card for a minute.
+    @Published var calendarAlertEventId: String? = nil
+    /// Calendars unchecked in Settings (identifiers). Empty = every calendar, new ones included.
+    @Published var calendarHidden: [String] = [] {
+        didSet {
+            UserDefaults.standard.set(calendarHidden, forKey: "calendarHidden")
+            // Deferred: also runs while AppState.shared is being created (see mailAccountFilter)
+            Task { @MainActor in CalendarWatcher.shared.refresh() }
+        }
+    }
     #endif
 
     // Claude plan gauge (from statusline hook)
@@ -503,6 +520,7 @@ final class AppState: ObservableObject {
         #if !APPSTORE
         if let a = ud.stringArray(forKey: "mailAccountFilter") { mailAccountFilter = Array(a.prefix(Self.maxMailAccounts)) }
         mailShownAccount = ud.string(forKey: "mailShownAccount")
+        if let a = ud.stringArray(forKey: "calendarHidden") { calendarHidden = a }
         #endif
         if let d = ud.data(forKey: "vercelProjectFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
@@ -745,11 +763,16 @@ final class AppState: ObservableObject {
             activeIntegrations.remove(id)
             tasks.removeAll { $0.id == id }
             if focusId == id { focusId = mainPillId }
+            #if !APPSTORE
+            if id == CalendarWatcher.pillId { CalendarWatcher.shared.refresh() }  // drops the alert timer
+            #endif
         } else {
             guard activeIntegrations.count < Self.maxActivePills else { return }
             activeIntegrations.insert(id)
             #if !APPSTORE
             if id == "integration_mail" { MailPoller.shared.poll() }  // fill the card right away
+            // Asks for Calendar access the first time; deferred so the pill exists for its alerts
+            if id == CalendarWatcher.pillId { Task { @MainActor in CalendarWatcher.shared.activate() } }
             #endif
             if let def = PillCatalog.available.first(where: { $0.id == id }),
                !tasks.contains(where: { $0.id == id }) {

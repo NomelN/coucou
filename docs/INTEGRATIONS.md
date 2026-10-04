@@ -322,6 +322,14 @@ Réglages → Chat → Local models → **Disconnect**. Efface l'URL sauvegardé
 
 ---
 
+## 6bis. Calendrier (app Calendrier du Mac, build GitHub)
+
+- Lecture par EventKit (`CalendarWatcher`), en local : iCloud, Google, Exchange… tout ce qui est ajouté à l'app Calendrier. Aucune clé, aucun réseau.
+- Accès : `requestFullAccessToEvents` à l'activation de la pastille (ou bouton « Allow access »). Clé Info.plist `NSCalendarsFullAccessUsageDescription`, entitlement `com.apple.security.personal-information.calendars` (runtime renforcé).
+- Événements : ceux du jour pas encore finis, dans les agendas cochés (Réglages → Integrations → Calendar).
+- Alertes : celles réglées dans Calendrier sur chaque événement. Coucou les affiche en plus de la notification de macOS (à couper dans Réglages Système → Notifications → Calendrier si on n'en veut qu'une).
+- Ouverture d'un événement : `ical://ekevent/<id>?method=show`, sinon l'app Calendrier.
+
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)
 
 | Permission | Pourquoi | Quand |
@@ -331,6 +339,7 @@ Réglages → Chat → Local models → **Disconnect**. Efface l'URL sauvegardé
 | Automatisation → Musique *(GitHub only)* | contrôler la lecture Apple Music | première commande depuis le notch |
 | Enregistrement de l'écran | capturer la fenêtre attrapée | première attache |
 | Micro + Reconnaissance vocale (optionnel) | dictée | premier clic sur le micro |
+| Calendriers *(GitHub only)* | événements du jour et alertes de la pastille Calendar | activation de la pastille Calendar |
 
 Aucune permission Accessibilité nécessaire.
 

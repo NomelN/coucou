@@ -2,6 +2,7 @@ import SwiftUI
 import ServiceManagement
 import AppKit
 import AVFoundation
+import EventKit
 
 struct SettingsView: View {
     @ObservedObject private var state = AppState.shared
@@ -867,6 +868,15 @@ struct SettingsView: View {
                                     loading: loadingMail,
                                     onLoad: loadMailAccounts)
                 }
+
+                // Calendar (macOS Calendar — no key, read through EventKit)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: "#FF7A45")).frame(width: 8, height: 8)
+                        Text("Calendar").font(.system(size: 12, weight: .semibold))
+                    }
+                    CalendarsRow(access: state.calendarAccess, hidden: $state.calendarHidden)
+                }
                 #endif
 
                 Button("Save integrations") { saveIntegrations() }
@@ -1465,6 +1475,90 @@ struct MailAccountsRow: View {
                 .foregroundColor(.secondary)
         }
     }
+}
+#endif
+
+// MARK: - Calendars picker (GitHub build only)
+
+#if !APPSTORE
+/// The Mac's calendars, all checked by default: the Calendar pill shows their events and alerts.
+/// Unchecked ones are saved, so a calendar added later is watched without a visit here.
+struct CalendarsRow: View {
+    let access: EKAuthorizationStatus
+    @Binding var hidden: [String]
+    @State private var calendars: [CalendarInfo] = []
+
+    private var accounts: [String] {
+        calendars.reduce(into: [String]()) { if !$0.contains($1.account) { $0.append($1.account) } }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch access {
+            case .fullAccess:
+                HStack(spacing: 6) {
+                    Text("Calendars")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Button("Refresh") { load() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(accounts, id: \.self) { account in
+                        if !account.isEmpty {
+                            Text(account)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .padding(.top, 3)
+                        }
+                        ForEach(calendars.filter { $0.account == account }) { cal in
+                            Toggle(isOn: Binding(
+                                get: { !hidden.contains(cal.id) },
+                                set: { on in
+                                    if on { hidden.removeAll { $0 == cal.id } } else { hidden.append(cal.id) }
+                                }
+                            )) {
+                                HStack(spacing: 5) {
+                                    Circle().fill(Color(hex: cal.color)).frame(width: 7, height: 7)
+                                    Text(cal.title)
+                                }
+                            }
+                            .font(.system(size: 11))
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+                .padding(.leading, 4)
+                Text("Checked calendars show their events in the Calendar pill, and their alerts open the notch.")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            case .notDetermined:
+                HStack(spacing: 6) {
+                    Text("Coucou needs access to your calendars.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Button("Allow access") { CalendarWatcher.shared.requestAccess() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                }
+            default:
+                HStack(spacing: 6) {
+                    Text("Calendar access is off for Coucou.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                    Button("Open Settings…") { CalendarWatcher.openPrivacySettings() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                }
+            }
+        }
+        .onAppear { load() }
+        .onChange(of: access) { _, _ in load() }
+    }
+
+    private func load() { calendars = CalendarWatcher.shared.calendars() }
 }
 #endif
 

@@ -171,6 +171,28 @@ final class VoiceEngine: NSObject {
         say(line: "mail", else: french ? "Nouveau mail\(who)." : "New mail\(who).", kind: .notice)
     }
 
+    /// An alert set on a calendar event: "Réunion d'équipe dans 10 minutes."
+    func calendarAlert(_ title: String, startsIn seconds: TimeInterval, isAllDay: Bool) {
+        guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
+        let minutes = Int((seconds / 60).rounded())
+        let text: String
+        if isAllDay {
+            text = french ? "Aujourd'hui : \(title)." : "Today: \(title)."
+        } else if minutes <= 0 {
+            text = french ? "\(title) commence maintenant." : "\(title) starts now."
+        } else if minutes < 60 {
+            text = french ? "\(title) dans \(minutes) minute\(minutes > 1 ? "s" : "")." : "\(title) in \(minutes) minute\(minutes > 1 ? "s" : "")."
+        } else {
+            let f = DateFormatter()
+            f.timeStyle = .short
+            f.dateStyle = .none
+            let at = f.string(from: Date().addingTimeInterval(seconds))
+            text = french ? "\(title) à \(at)." : "\(title) at \(at)."
+        }
+        // Mochi's line would not say which event: the Mac voice reads the title
+        speak(text, kind: .notice)
+    }
+
     func mailSent() {
         guard AppState.shared.voiceEnabled, AppState.shared.voiceSpeaksServices else { return }
         say(line: "mail-envoye", else: french ? "Mail envoyé." : "Mail sent.", kind: .notice)

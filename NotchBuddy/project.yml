@@ -72,6 +72,7 @@ targets:
         NSSupportsAutomaticGraphicsSwitching: YES
         NSAppleEventsUsageDescription: "Pour sauter au terminal, lire et envoyer des mails et piloter Musique."
         NSAccessibilityUsageDescription: "Pour lire le titre de la fenêtre active et l'attacher comme contexte."
+        NSCalendarsFullAccessUsageDescription: "Pour afficher tes prochains événements dans l'encoche et ouvrir l'encoche à leurs alertes. Rien ne quitte ton Mac."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:

@@ -31,6 +31,8 @@
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Pour sauter au terminal, lire et envoyer des mails et piloter Musique.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Pour afficher tes prochains événements dans l'encoche et ouvrir l'encoche à leurs alertes. Rien ne quitte ton Mac.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>

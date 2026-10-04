@@ -219,6 +219,10 @@ struct OverviewView: View {
             #if !APPSTORE
             MailPoller.openMail()
             #endif
+        case "integration_calendar":
+            #if !APPSTORE
+            CalendarWatcher.openCalendar()
+            #endif
         case "integration_chatgpt":
             #if !APPSTORE
             if let url = PillCatalog.chatGPTAppURL {
@@ -1639,6 +1643,12 @@ struct IntegrationCardView: View {
             #else
             return false
             #endif
+        case "integration_calendar":
+            #if !APPSTORE
+            return appState.calendarAccess == .fullAccess
+            #else
+            return false
+            #endif
         case "integration_chatgpt":
             #if !APPSTORE
             return PillCatalog.chatGPTAppURL != nil
@@ -1742,6 +1752,15 @@ struct IntegrationCardView: View {
         #endif
     }
 
+    private var calendarHasData: Bool {
+        #if !APPSTORE
+        task.id == "integration_calendar" && appState.calendarAccess == .fullAccess
+            && !appState.calendarEvents.isEmpty
+        #else
+        false
+        #endif
+    }
+
     private var musicIsActive: Bool {
         #if !APPSTORE
         guard task.id == "integration_music" else { return false }
@@ -1761,6 +1780,13 @@ struct IntegrationCardView: View {
         if task.id == "integration_mail" {
             if appState.mailAutomationDenied { return Color(hex: "#F4505E") }
             return appState.mailRunning ? Color(hex: "#22C55E") : Color(hex: "#6B7079")
+        }
+        if task.id == "integration_calendar" {
+            switch appState.calendarAccess {
+            case .fullAccess:    return Color(hex: "#22C55E")
+            case .notDetermined: return Color(hex: "#6B7079")
+            default:             return Color(hex: "#F4505E")
+            }
         }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return Color(hex: "#6B7079") }
@@ -1783,6 +1809,15 @@ struct IntegrationCardView: View {
             if !appState.mailRunning { return "Mail not open" }
             let unread = appState.mailInboxes.reduce(0) { $0 + $1.unread }
             return unread == 0 ? "No unread mail" : "\(unread) unread"
+        }
+        if task.id == "integration_calendar" {
+            switch appState.calendarAccess {
+            case .fullAccess:
+                let n = appState.calendarEvents.count
+                return n == 0 ? "Nothing more today" : "\(n) event\(n > 1 ? "s" : "") today"
+            case .notDetermined: return "Access not asked yet"
+            default:             return "Calendar access not allowed"
+            }
         }
         #endif
         if PillCatalog.definition(for: task.id)?.comingSoon == true { return "Coming soon" }
@@ -1878,6 +1913,11 @@ struct IntegrationCardView: View {
         } else if mailHasData {
             #if !APPSTORE
             MailCardView()
+                .transition(.opacity)
+            #endif
+        } else if calendarHasData {
+            #if !APPSTORE
+            CalendarCardView()
                 .transition(.opacity)
             #endif
         } else if musicIsActive {
@@ -2018,6 +2058,24 @@ struct IntegrationCardView: View {
                                 .buttonStyle(.plain)
                         }
                         #endif
+                    } else if task.id == "integration_calendar" {
+                        #if !APPSTORE
+                        Button("Open Calendar") { CalendarWatcher.openCalendar() }
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color(hex: task.color).opacity(0.85))
+                            .buttonStyle(.plain)
+                        if appState.calendarAccess == .notDetermined {
+                            Button("Allow access") { CalendarWatcher.shared.requestAccess() }
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "#8E939C"))
+                                .buttonStyle(.plain)
+                        } else if appState.calendarAccess != .fullAccess {
+                            Button("Open Settings…") { CalendarWatcher.openPrivacySettings() }
+                                .font(.system(size: 11))
+                                .foregroundColor(Color(hex: "#8E939C"))
+                                .buttonStyle(.plain)
+                        }
+                        #endif
                     } else if task.id == "integration_music" {
                         #if !APPSTORE
                         Button("Open Music") { MusicController.shared.openMusic() }
@@ -2078,6 +2136,7 @@ struct IntegrationCardView: View {
                        && task.id != "agent_codex"
                        && task.id != "integration_music"
                        && task.id != "integration_mail"
+                       && task.id != "integration_calendar"
                        && task.id != "integration_chatgpt" {
                         Button("Settings…") {
                             let section: String
@@ -2474,6 +2533,93 @@ struct MailCardView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 5)
+            .padding(.leading, 108)
+            .padding(.trailing, 12)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(.top, 4)
+    }
+}
+
+// MARK: - Calendar Card View (GitHub build only)
+
+/// Today's coming events from the Mac's Calendar, same layout as the Mail card.
+/// A row opens the event in Calendar; Join opens its video call.
+struct CalendarCardView: View {
+    @ObservedObject var appState = AppState.shared
+
+    private let accent = Color(hex: "#FF7A45")
+
+    /// The event whose alert just showed comes first, then the next ones.
+    private var events: [CalendarEventInfo] {
+        let all = appState.calendarEvents
+        guard let alerted = appState.calendarAlertEventId,
+              let hit = all.first(where: { $0.id == alerted }) else { return Array(all.prefix(3)) }
+        return Array(([hit] + all.filter { $0.id != alerted }).prefix(3))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 7, height: 7)
+                Text("Calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+                Text("Today")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                let n = appState.calendarEvents.count
+                Text("\(n) event\(n > 1 ? "s" : "")")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Color(hex: "#C5C8CD"))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            .padding(.top, 6)
+            .padding(.leading, 108)
+            .padding(.trailing, 36)
+
+            // Event rows — first is highlighted, rest plain (same structure as the Mail card)
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(events.enumerated()), id: \.element.id) { idx, event in
+                    HStack(spacing: 5) {
+                        Button { CalendarWatcher.open(event) } label: {
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(Color(hex: event.color))
+                                    .frame(width: 5, height: 5)
+                                Text(event.when)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(Color(hex: idx == 0 ? "#C5C8CD" : "#6B7079"))
+                                    .monospacedDigit()
+                                    .lineLimit(1)
+                                Text(event.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(Color(hex: idx == 0 ? "#C5C8CD" : "#9398A1"))
+                                    .lineLimit(1).truncationMode(.tail)
+                                    .layoutPriority(1)
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if let url = event.meetingURL {
+                            Button("Join") { NSWorkspace.shared.open(url) }
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(accent)
+                                .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(idx == 0 ? accent.opacity(0.08) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
             }
             .padding(.top, 5)

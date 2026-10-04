@@ -105,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotionPoller.shared.start()
         #if !APPSTORE
         MailPoller.shared.start()
+        CalendarWatcher.shared.start()
         #endif
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
