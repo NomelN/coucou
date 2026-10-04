@@ -29,6 +29,9 @@ final class AppState: ObservableObject {
     // Bot drag-attach state (hides original bot while ghost follows cursor)
     @Published var isDraggingBot: Bool = false
 
+    // Desktop Mochi: true while Mochi lives on the desktop instead of the notch
+    @Published var mochiOnDesktop: Bool = false
+
     // Mouse tracking
     var mousePosition: CGPoint = .zero
     var lastMouseMove: Date = .now
@@ -76,6 +79,27 @@ final class AppState: ObservableObject {
     // Mochi voice only: greeting, slaps, love, proud, swallowed file
     @Published var voiceSpeaksReactions: Bool = true {
         didSet { UserDefaults.standard.set(voiceSpeaksReactions, forKey: "voiceSpeaksReactions") }
+    }
+
+    // Mochi outfit selection — persisted
+    @Published var mochiOutfitSelection: Outfit = .auto {
+        didSet { Outfit.stored = mochiOutfitSelection }
+    }
+    // Transient: outfit preview while hovering in wardrobe (overrides resolvedOutfit in BotCanvasView)
+    var wardrobePreviewOutfit: Outfit? = nil
+    // Per-day seasonal cache — avoids recomputing Easter and date math on every frame
+    private var _seasonalCache: (dayOfYear: Int, year: Int, outfit: Outfit)?
+    var resolvedOutfit: Outfit {
+        if let preview = wardrobePreviewOutfit { return preview }
+        guard mochiOutfitSelection == .auto else { return mochiOutfitSelection }
+        let cal = Calendar.current
+        let now = Date()
+        let day  = cal.ordinality(of: .day, in: .year, for: now) ?? 0
+        let year = cal.component(.year, from: now)
+        if let c = _seasonalCache, c.dayOfYear == day && c.year == year { return c.outfit }
+        let outfit = Outfit.seasonal(for: now, calendar: cal)
+        _seasonalCache = (dayOfYear: day, year: year, outfit: outfit)
+        return outfit
     }
 
     // Claude model used by the chat and the search — persisted
@@ -456,6 +480,7 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "voiceSpeaksChat")   as? Bool { voiceSpeaksChat   = v }
         if let v = ud.object(forKey: "voiceSpeaksServices")  as? Bool { voiceSpeaksServices  = v }
         if let v = ud.object(forKey: "voiceSpeaksReactions") as? Bool { voiceSpeaksReactions = v }
+        mochiOutfitSelection = Outfit.stored
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }
         if let v = ud.string(forKey: "chatProvider"), let p = ChatProvider(rawValue: v) { chatProvider = p }
