@@ -1113,6 +1113,8 @@ struct PromptView: View {
     @State private var text: String = ""
     @FocusState private var focused: Bool
     @State private var showModelPicker = false
+    /// A question is waiting for its answer: a new chat would mix the old answer into it.
+    @State private var sending = false
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -1160,8 +1162,27 @@ struct PromptView: View {
                     Spacer()
                 }
 
-                HStack(spacing: 0) {
+                HStack(spacing: 6) {
                     Spacer()
+                    if !state.chatHistory.isEmpty || state.promptContext != nil {
+                        Button(action: newChat) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 9.5, weight: .medium))
+                                Text("New chat")
+                                    .font(.system(size: 10.5, weight: .medium))
+                            }
+                            .foregroundColor(Color(hex: "#7B8089"))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(sending)
+                        .opacity(sending ? 0.4 : 1)
+                        .help("Clear this conversation and start a new one")
+                    }
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             showModelPicker.toggle()
@@ -1237,10 +1258,28 @@ struct PromptView: View {
         focused = false
         state.chatHistory.append(ChatMessage(role: .user, content: query))
         state.stateOverride = .thinking
+        sending = true
         Task {
             await ClaudeService.shared.chat(query: query, context: state.promptContext, state: state)
-            await MainActor.run { focused = true }
+            await MainActor.run {
+                sending = false
+                focused = true
+            }
         }
+    }
+
+    /// Clears the conversation: messages on screen, what the model remembers, the attached file or window.
+    private func newChat() {
+        VoiceEngine.shared.stop(.chat)
+        ClaudeService.shared.clearConversation()
+        withAnimation(.easeOut(duration: 0.2)) {
+            state.chatHistory = []
+            state.promptContext = nil
+            state.droppedFile = nil
+        }
+        text = ""
+        SoundEngine.shared.play("blip")
+        focused = true
     }
 }
 
