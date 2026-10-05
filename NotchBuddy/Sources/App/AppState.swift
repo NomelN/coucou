@@ -42,6 +42,11 @@ final class AppState: ObservableObject {
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
 
+    // Keyboard navigation — index of the selected item within the current card's list (nil = none)
+    @Published var cardSelection: Int? = nil
+    // Number of navigable items in the card currently on screen (0 = no list)
+    @Published var cardItemCount: Int = 0
+
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
 
@@ -274,22 +279,13 @@ final class AppState: ObservableObject {
 
     // Hotkey to show island (e.g. ⌘⇧N)
     @Published var hotkeyEnabled: Bool = false {
-        didSet {
-            UserDefaults.standard.set(hotkeyEnabled, forKey: "hotkeyEnabled")
-            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
-        }
+        didSet { UserDefaults.standard.set(hotkeyEnabled, forKey: "hotkeyEnabled") }
     }
     var hotkeyFlags: UInt = NSEvent.ModifierFlags([.command, .shift]).rawValue {
-        didSet {
-            UserDefaults.standard.set(Int(hotkeyFlags), forKey: "hotkeyFlags")
-            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
-        }
+        didSet { UserDefaults.standard.set(Int(hotkeyFlags), forKey: "hotkeyFlags") }
     }
     var hotkeyCode: UInt16 = 45 {  // 'n'
-        didSet {
-            UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode")
-            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
-        }
+        didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
     // Vercel project filter — empty = watch all projects
@@ -359,6 +355,9 @@ final class AppState: ObservableObject {
     @Published var notionPages: [NotionPage] = []
     @Published var notionLoaded: Bool = false
     @Published var notionError: String? = nil
+
+    // n8n — the last executions, newest first (for the iPhone; the notch shows only the latest)
+    @Published var n8nRuns: [N8nRun] = []
 
     // Chat conversation history
     @Published var chatHistory: [ChatMessage] = []
@@ -930,6 +929,13 @@ struct CalcomBooking: Identifiable, Equatable {
 }
 
 // MARK: - Notion
+
+struct N8nRun: Equatable {
+    let workflow: String
+    let detail: String?
+    let success: Bool
+    let date: Date
+}
 
 struct NotionPage: Identifiable {
     let id: String
